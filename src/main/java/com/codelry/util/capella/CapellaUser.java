@@ -3,10 +3,11 @@ package com.codelry.util.capella;
 import com.codelry.util.capella.logic.ResourcesData;
 import com.codelry.util.capella.logic.UserData;
 import com.codelry.util.rest.exceptions.HttpResponseException;
-import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+
+import static com.codelry.util.capella.RetryLogic.retryReturn;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -18,7 +19,11 @@ public class CapellaUser extends CapellaOrganization {
   public CapellaUser(String project, String profile) {
     super(project, profile);
     this.userEndpoint = this.orgEndpoint + "/" + this.organization.id + "/users";
-    this.userRecord = getByEmail();
+    try {
+      this.userRecord = retryReturn(this::getByEmail);
+    } catch (Exception e) {
+      throw new RuntimeException(e);
+    }
   }
 
   public List<UserData> listUsers() {
@@ -46,7 +51,7 @@ public class CapellaUser extends CapellaOrganization {
         return user;
       }
     }
-    return null;
+    throw new RuntimeException("No user for email: " + email);
   }
 
   public UserData getByEmail() {
@@ -55,7 +60,7 @@ public class CapellaUser extends CapellaOrganization {
         return user;
       }
     }
-    return null;
+    throw new RuntimeException("No user for email: " + this.getAccountEmail());
   }
 
   public List<String> getProjects() {
@@ -68,7 +73,7 @@ public class CapellaUser extends CapellaOrganization {
     return result;
   }
 
-  public UserData setProjectOwnership(String projectId) {
+  public void setProjectOwnership(String projectId) {
     String userIdEndpoint = userEndpoint + "/" + userRecord.id;
     ObjectMapper mapper = new ObjectMapper();
     ObjectNode parameters = mapper.createObjectNode();
@@ -84,8 +89,7 @@ public class CapellaUser extends CapellaOrganization {
     ArrayNode payload = mapper.createArrayNode();
     payload.add(parameters);
     try {
-      JsonNode result = this.rest.patch(userIdEndpoint, payload).validate().json();
-      return new UserData(result);
+      this.rest.patch(userIdEndpoint, payload).validate().json();
     } catch (HttpResponseException e) {
       throw new RuntimeException(e.getMessage(), e);
     }

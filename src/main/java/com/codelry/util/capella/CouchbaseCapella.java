@@ -67,7 +67,10 @@ public class CouchbaseCapella {
     this.project = getProperty(profileConfig, "project", this.project);
     this.accountEmail = getProperty(profileConfig, "account_email", this.accountEmail);
 
-    LOGGER.debug("found token file: {}", this.tokenFile);
+    LOGGER.debug("Token File Path: {}", this.tokenFilePath);
+    LOGGER.debug("Organization: {}", this.organization);
+    LOGGER.debug("Project: {}", this.project);
+    LOGGER.debug("Email: {}", this.accountEmail);
   }
 
   private String getProperty(SubnodeConfiguration config, String key, String defaultValue) {
