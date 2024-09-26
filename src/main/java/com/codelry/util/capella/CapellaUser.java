@@ -2,25 +2,46 @@ package com.codelry.util.capella;
 
 import com.codelry.util.capella.logic.ResourcesData;
 import com.codelry.util.capella.logic.UserData;
+import com.codelry.util.rest.REST;
 import com.codelry.util.rest.exceptions.HttpResponseException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import static com.codelry.util.capella.RetryLogic.retryReturn;
 
 import java.util.ArrayList;
 import java.util.List;
 
-public class CapellaUser extends CapellaOrganization {
-  public String userEndpoint;
-  public UserData userRecord;
+public class CapellaUser {
+  private static final Logger LOGGER = LogManager.getLogger(CapellaUser.class);
+  private static CapellaUser instance;
+  private static REST rest;
+  private static CapellaOrganization organization;
+  public static String email;
+  public static String endpoint;
+  public static UserData user;
 
-  public CapellaUser(String project, String profile) {
-    super(project, profile);
-    this.userEndpoint = this.orgEndpoint + "/" + this.organization.id + "/users";
+  private CapellaUser() {}
+
+  public static synchronized CapellaUser getInstance(CapellaOrganization organization) {
+    if (instance == null) {
+      instance = new CapellaUser();
+      instance.attach(organization);
+    }
+    return instance;
+  }
+
+  public void attach(CapellaOrganization organization) {
+    CapellaUser.organization = organization;
+    CapellaUser.rest = CouchbaseCapella.rest;
+    email = CapellaOrganization.capella.getAccountEmail();
+    endpoint = CapellaOrganization.endpoint + "/" + CapellaOrganization.organization.id + "/users";
     try {
-      this.userRecord = retryReturn(this::getByEmail);
+      user = retryReturn(this::getByEmail);
+      LOGGER.debug("User ID: {}", user.id);
     } catch (Exception e) {
       throw new RuntimeException(e);
     }
@@ -29,7 +50,7 @@ public class CapellaUser extends CapellaOrganization {
   public List<UserData> listUsers() {
     List<UserData> result = new ArrayList<>();
     try {
-      ArrayNode reply = this.rest.getPaged(userEndpoint,
+      ArrayNode reply = rest.getPaged(endpoint,
           "page",
           "totalItems",
           "last",
@@ -56,16 +77,16 @@ public class CapellaUser extends CapellaOrganization {
 
   public UserData getByEmail() {
     for (UserData user : listUsers()) {
-      if (user.email.equals(this.getAccountEmail())) {
+      if (user.email.equals(email)) {
         return user;
       }
     }
-    throw new RuntimeException("No user for email: " + this.getAccountEmail());
+    throw new RuntimeException("No user for email: " + email);
   }
 
   public List<String> getProjects() {
     List<String> result = new ArrayList<>();
-    for (ResourcesData resource : userRecord.resources) {
+    for (ResourcesData resource : user.resources) {
       if (resource.type.equals("project")) {
         result.add(resource.id);
       }
@@ -74,7 +95,7 @@ public class CapellaUser extends CapellaOrganization {
   }
 
   public void setProjectOwnership(String projectId) {
-    String userIdEndpoint = userEndpoint + "/" + userRecord.id;
+    String userIdEndpoint = endpoint + "/" + user.id;
     ObjectMapper mapper = new ObjectMapper();
     ObjectNode parameters = mapper.createObjectNode();
     parameters.put("op", "add");
@@ -89,7 +110,7 @@ public class CapellaUser extends CapellaOrganization {
     ArrayNode payload = mapper.createArrayNode();
     payload.add(parameters);
     try {
-      this.rest.patch(userIdEndpoint, payload).validate().json();
+      rest.patch(userIdEndpoint, payload).validate().json();
     } catch (HttpResponseException e) {
       throw new RuntimeException(e.getMessage(), e);
     }

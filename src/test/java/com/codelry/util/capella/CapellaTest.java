@@ -10,7 +10,9 @@ public class CapellaTest {
 
   @Test
   public void testCapella1() {
-    CapellaProject project = new CapellaProject(projectName, profileName).getProject();
-    Assertions.assertNotNull(project);
+    CouchbaseCapella capella = CouchbaseCapella.getInstance(projectName, profileName);
+    CapellaOrganization organization = CapellaOrganization.getInstance(capella);
+    CapellaProject project = CapellaProject.getInstance(organization);
+    Assertions.assertNotNull(project.getId());
   }
 }

@@ -17,41 +17,53 @@ public class CouchbaseCapella {
   private static final String CONFIG_FILE = "credentials";
   private static final String DEFAULT_API_KEY_TOKEN = "default-api-key-token.txt";
   private static final String DEFAULT_PROFILE = "default";
+  private static CouchbaseCapella instance;
 
-  private final Path homeDir = Paths.get(System.getProperty("user.home"));
-  private final Path configDirectory = homeDir.resolve(CONFIG_DIRECTORY);
-  private final Path configFile = configDirectory.resolve(CONFIG_FILE);
+  private static final Path homeDir = Paths.get(System.getProperty("user.home"));
+  private static final Path configDirectory = homeDir.resolve(CONFIG_DIRECTORY);
+  private static final Path configFile = configDirectory.resolve(CONFIG_FILE);
 
-  public REST rest;
-  public final String profile;
-  public String project;
+  public static REST rest;
+  public static String profile;
+  public static String project;
 
-  private String apiHost;
-  private String tokenFile;
-  private Path tokenFilePath = configDirectory.resolve(DEFAULT_API_KEY_TOKEN);
-  private String organization;
-  private String accountEmail;
-  private String profileKeyId;
-  private String profileToken;
+  private static String apiHost;
+  private static String tokenFile;
+  private static Path tokenFilePath = configDirectory.resolve(DEFAULT_API_KEY_TOKEN);
+  private static String organization;
+  private static String accountEmail;
+  private static String profileKeyId;
+  private static String profileToken;
 
-  public CouchbaseCapella(String project, String profile) {
-    this.profile = (profile != null) ? profile : DEFAULT_PROFILE;
-    this.project = (project != null) ? project : DEFAULT_PROFILE;
-    LOGGER.debug("using profile: {}", this.profile);
-    init();
-    this.rest = new REST(this.apiHost, this.profileToken, true);
+  private CouchbaseCapella() {}
+
+  public static CouchbaseCapella getInstance(String project, String profile) {
+    if (instance == null) {
+      instance = new CouchbaseCapella();
+      instance.init(project, profile);
+    }
+    return instance;
   }
 
-  private void init() {
+  public void init(String project, String profile) {
+    CouchbaseCapella.profile = (profile != null) ? profile : DEFAULT_PROFILE;
+    CouchbaseCapella.project = (project != null) ? project : DEFAULT_PROFILE;
+    LOGGER.debug("using profile: {}", CouchbaseCapella.profile);
+    processConfig();
+    rest = new REST(apiHost, profileToken, true);
+  }
+
+  private void processConfig() {
     LOGGER.debug("initializing with credential file: {}", configFile.toString());
     readConfig(DEFAULT_PROFILE);
-    if (!this.profile.equals(DEFAULT_PROFILE)) {
-      readConfig(this.profile);
+    if (!profile.equals(DEFAULT_PROFILE)) {
+      readConfig(profile);
     }
     readToken();
   }
 
   private void readConfig(String profile) {
+    LOGGER.debug(" -> reading profile: {}", profile);
     if (!Files.exists(configFile)) {
       writeDefaultConfig();
     }
@@ -60,17 +72,17 @@ public class CouchbaseCapella {
     if (profileConfig == null) {
       throw new RuntimeException("Profile not found: " + profile);
     }
-    this.apiHost = getProperty(profileConfig, "api_host", this.apiHost);
-    this.tokenFile = getProperty(profileConfig, "token_file", this.tokenFile);
-    this.tokenFilePath = configDirectory.resolve(this.tokenFile);
-    this.organization = getProperty(profileConfig, "organization", this.organization);
-    this.project = getProperty(profileConfig, "project", this.project);
-    this.accountEmail = getProperty(profileConfig, "account_email", this.accountEmail);
+    apiHost = getProperty(profileConfig, "api_host", apiHost);
+    tokenFile = getProperty(profileConfig, "token_file", tokenFile);
+    tokenFilePath = configDirectory.resolve(tokenFile);
+    organization = getProperty(profileConfig, "organization", organization);
+    project = getProperty(profileConfig, "project", project);
+    accountEmail = getProperty(profileConfig, "account_email", accountEmail);
 
-    LOGGER.debug("Token File Path: {}", this.tokenFilePath);
-    LOGGER.debug("Organization: {}", this.organization);
-    LOGGER.debug("Project: {}", this.project);
-    LOGGER.debug("Email: {}", this.accountEmail);
+    LOGGER.debug("Token File Path: {}", tokenFilePath);
+    LOGGER.debug("Organization: {}", organization);
+    LOGGER.debug("Project: {}", project);
+    LOGGER.debug("Email: {}", accountEmail);
   }
 
   private String getProperty(SubnodeConfiguration config, String key, String defaultValue) {
@@ -110,7 +122,7 @@ public class CouchbaseCapella {
       findTokenFile();
     }
     readTokenFile();
-    LOGGER.info("using API Key ID: {} from {}", this.profileKeyId, this.tokenFile);
+    LOGGER.debug("using API Key ID: {} from {}", profileKeyId, tokenFile);
   }
 
   private void readTokenFile() {
@@ -123,14 +135,14 @@ public class CouchbaseCapella {
             String key = parts[0].trim();
             String value = parts[1].trim();
             if (key.equals("APIKeyToken")) {
-              this.profileToken = value;
+              profileToken = value;
             } else if (key.equals("APIKeyId")) {
-              this.profileKeyId = value;
+              profileKeyId = value;
             }
           }
         }
       } catch (IOException e) {
-        throw new RuntimeException("can not read credential file " + this.tokenFile, e);
+        throw new RuntimeException("can not read credential file " + tokenFile, e);
       }
     } else {
       throw new RuntimeException("Please create Capella token file (i.e. $HOME/.capella/default-api-key-token.txt)");
@@ -156,7 +168,7 @@ public class CouchbaseCapella {
   }
 
   public void setApiHost(String apiHost) {
-    this.apiHost = apiHost;
+    CouchbaseCapella.apiHost = apiHost;
   }
 
   public String getTokenFile() {
@@ -164,7 +176,7 @@ public class CouchbaseCapella {
   }
 
   public void setTokenFile(String tokenFile) {
-    this.tokenFile = tokenFile;
+    CouchbaseCapella.tokenFile = tokenFile;
   }
 
   public String getOrganization() {
@@ -172,7 +184,7 @@ public class CouchbaseCapella {
   }
 
   public void setOrganization(String organization) {
-    this.organization = organization;
+    CouchbaseCapella.organization = organization;
   }
 
   public String getProjectName() {
@@ -180,7 +192,7 @@ public class CouchbaseCapella {
   }
 
   public void setProjectName(String project) {
-    this.project = project;
+    CouchbaseCapella.project = project;
   }
 
   public String getAccountEmail() {
@@ -188,7 +200,7 @@ public class CouchbaseCapella {
   }
 
   public void setAccountEmail(String accountEmail) {
-    this.accountEmail = accountEmail;
+    CouchbaseCapella.accountEmail = accountEmail;
   }
 
   public String getProfileKeyId() {
@@ -196,7 +208,7 @@ public class CouchbaseCapella {
   }
 
   public void setProfileKeyId(String profileKeyId) {
-    this.profileKeyId = profileKeyId;
+    CouchbaseCapella.profileKeyId = profileKeyId;
   }
 
   public String getProfileToken() {
@@ -204,6 +216,6 @@ public class CouchbaseCapella {
   }
 
   public void setProfileToken(String profileToken) {
-    this.profileToken = profileToken;
+    CouchbaseCapella.profileToken = profileToken;
   }
 }
