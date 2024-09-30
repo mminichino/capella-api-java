@@ -5,6 +5,8 @@ import com.codelry.util.capella.logic.*;
 import com.codelry.util.rest.REST;
 import com.codelry.util.rest.exceptions.HttpResponseException;
 import com.codelry.util.rest.exceptions.NotFoundError;
+import com.couchbase.client.core.manager.bucket.CoreBucketSettings;
+import com.couchbase.client.java.manager.bucket.BucketSettings;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
@@ -13,9 +15,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import java.time.Duration;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
+import java.util.*;
 
 public class CapellaCluster {
   private static final Logger LOGGER = LogManager.getLogger(CapellaCluster.class);
@@ -224,12 +224,12 @@ public class CapellaCluster {
 
   public boolean wait(String clusterId, State state, StateWaitOperation operation) {
     String clusterIdEndpoint = endpoint + "/" + clusterId;
-    for (int retry = 0; retry < 48; retry++) {
+    for (int retry = 0; retry < 30; retry++) {
       try {
         JsonNode reply = rest.get(clusterIdEndpoint).validate().json();
         boolean check = operation.evaluate(reply.get("currentState").asText().equals(state.toString()));
         if (!check) {
-          Thread.sleep(Duration.ofSeconds(5).toMillis());
+          Thread.sleep(Duration.ofSeconds(10).toMillis());
           continue;
         }
         return true;
@@ -247,6 +247,16 @@ public class CapellaCluster {
     for (ClusterData cluster : clusters) {
       if (name.equals(cluster.name)) {
         return cluster;
+      }
+    }
+    return null;
+  }
+
+  public BucketData isBucket(String name) {
+    List<BucketData> buckets = buckets();
+    for (BucketData bucket : buckets) {
+      if (name.equals(bucket.name)) {
+        return bucket;
       }
     }
     return null;
@@ -272,6 +282,35 @@ public class CapellaCluster {
       }
     } catch (HttpResponseException e) {
       LOGGER.error("Code: {} Message: {}\n{}", rest.responseCode, new String(rest.responseBody), parameters.toPrettyString());
+      throw new RuntimeException(e.getMessage(), e);
+    }
+  }
+
+  public void createBucket(BucketSettings bucketSettings) {
+    BucketData check = isBucket(bucketSettings.name());
+    if (check != null) {
+      LOGGER.debug("Bucket {} already exists", bucketSettings.name());
+      return;
+    }
+    LOGGER.debug("Creating bucket with settings {}", bucketSettings.toString());
+    String bucketEndpoint = endpoint + "/" + cluster.id + "/buckets";
+    ObjectNode parameters = new ObjectMapper().createObjectNode();
+    CoreBucketSettings settings = bucketSettings.toCore();
+    parameters.put("name", bucketSettings.name());
+    parameters.put("type", bucketSettings.bucketType() != null ? bucketSettings.bucketType().name().toLowerCase() : "couchbase");
+    parameters.put("storageBackend", bucketSettings.storageBackend() != null ? bucketSettings.storageBackend().toString().toLowerCase() : "couchstore");
+    Optional<Long> quota = Optional.ofNullable(settings.ramQuotaMB());
+    parameters.put("memoryAllocationInMb", quota.isPresent() ? bucketSettings.ramQuotaMB() : 128);
+    parameters.put("bucketConflictResolution", bucketSettings.conflictResolutionType() != null ? bucketSettings.conflictResolutionType().name().toLowerCase() : "seqno");
+    parameters.put("durabilityLevel", bucketSettings.minimumDurabilityLevel() != null ? bucketSettings.minimumDurabilityLevel().name().toLowerCase() : "none");
+    Optional<Integer> replicas = Optional.ofNullable(settings.numReplicas());
+    parameters.put("replicas", replicas.isPresent() ? bucketSettings.numReplicas() : 1);
+    Optional<Boolean> flush = Optional.ofNullable(settings.flushEnabled());
+    parameters.put("flush", flush.isPresent() && bucketSettings.flushEnabled());
+    parameters.put("timeToLiveInSeconds", bucketSettings.maxExpiry() != null ? bucketSettings.maxExpiry().getSeconds() : 0);
+    try {
+      rest.post(bucketEndpoint, parameters).validate().json();
+    } catch (HttpResponseException e) {
       throw new RuntimeException(e.getMessage(), e);
     }
   }
@@ -305,6 +344,18 @@ public class CapellaCluster {
       return result;
     } catch (NotFoundError e) {
       LOGGER.debug("Project does not have any clusters");
+      return result;
+    } catch (HttpResponseException e) {
+      throw new RuntimeException(e.getMessage(), e);
+    }
+  }
+
+  public List<BucketData> buckets() {
+    List<BucketData> result = new ArrayList<>();
+    String bucketEndpoint = endpoint + "/" + cluster.id + "/buckets";
+    try {
+      ArrayNode reply = rest.get(bucketEndpoint).validate().json().get("data").deepCopy();
+      reply.forEach(o -> result.add(new BucketData(o)));
       return result;
     } catch (HttpResponseException e) {
       throw new RuntimeException(e.getMessage(), e);

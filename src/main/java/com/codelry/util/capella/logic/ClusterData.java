@@ -39,9 +39,9 @@ public class ClusterData {
       ServiceGroupData serviceGroupData = new ServiceGroupData();
       serviceGroupData.cpu = serviceGroup.get("node").get("compute").get("cpu").asInt();
       serviceGroupData.ram = serviceGroup.get("node").get("compute").get("ram").asInt();
-      serviceGroupData.type = serviceGroup.get("disk").get("type").asText();
-      serviceGroupData.storage = serviceGroup.get("disk").get("storage").asInt();
-      serviceGroupData.iops = serviceGroup.get("disk").has("iops") ? serviceGroup.get("disk").get("iops").asInt() : 0;
+      serviceGroupData.type = serviceGroup.get("node").get("disk").get("type").asText();
+      serviceGroupData.storage = serviceGroup.get("node").get("disk").get("storage").asInt();
+      serviceGroupData.iops = serviceGroup.get("node").get("disk").has("iops") ? serviceGroup.get("node").get("disk").get("iops").asInt() : 0;
       serviceGroupData.numOfNodes = serviceGroup.get("numOfNodes").asInt();
       serviceGroupData.services = new ArrayList<>();
       for (JsonNode service : serviceGroup.get("services")) {

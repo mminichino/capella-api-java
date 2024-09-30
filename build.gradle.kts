@@ -20,6 +20,7 @@ dependencies {
     implementation("com.fasterxml.jackson.core:jackson-core:2.17.2")
     implementation("com.fasterxml.jackson.core:jackson-databind:2.17.2")
     implementation("org.apache.commons:commons-configuration2:2.11.0")
+    implementation("com.couchbase.client:java-client:3.7.2")
     implementation("com.codelry.util:restfull-core:1.0.1")
 }
 

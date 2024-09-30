@@ -105,8 +105,9 @@ public class CapellaProject {
     List<ProjectData> projects = getByEmail();
     if (!projects.isEmpty()) {
       for (ProjectData pd : projects) {
-        if (Objects.equals(pd.name, projectName)) {
+        if (projectName.equals(pd.name)) {
           project = pd;
+          return;
         }
       }
     }
