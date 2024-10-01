@@ -38,7 +38,7 @@ public class BucketData {
     opsPerSecond = data.get("stats").get("opsPerSecond").asInt();
     diskUsedInMib = data.get("stats").get("diskUsedInMib").asInt();
     memoryUsedInMib = data.get("stats").get("memoryUsedInMib").asInt();
-    priority = data.get("priority").asInt();
+    priority = data.has("priority") ? data.get("priority").asInt() : 0;
   }
 
   public BucketData() {}
