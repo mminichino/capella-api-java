@@ -233,6 +233,8 @@ public class CapellaCluster {
         return true;
       } catch (InterruptedException e) {
         LOGGER.debug(e.getMessage(), e);
+      } catch (NotFoundError e) {
+        LOGGER.debug("Cluster not found");
       } catch (HttpResponseException e) {
         throw new RuntimeException(e.getMessage(), e);
       }
@@ -279,7 +281,8 @@ public class CapellaCluster {
       try {
         String clusterIdEndpoint = endpoint + "/" + cluster.id;
         rest.delete(clusterIdEndpoint).validate();
-        LOGGER.debug("Cluster {} deleted", cluster.name);
+        LOGGER.debug("Waiting for cluster {} to be deleted", cluster.name);
+        wait(cluster.id, State.DESTROYING, StateWaitOperation.NOT_EQUALS);
         cluster = null;
       } catch (HttpResponseException e) {
         throw new RuntimeException(e.getMessage(), e);
@@ -333,5 +336,12 @@ public class CapellaCluster {
 
   public void getCluster(String clusterName) throws NotFoundException {
     cluster = getByName(clusterName);
+  }
+
+  public String getConnectString() {
+    if (cluster != null) {
+      return cluster.connectionString;
+    }
+    return null;
   }
 }
