@@ -1,9 +1,7 @@
 package com.codelry.util.capella;
 
 import com.couchbase.client.java.manager.bucket.BucketSettings;
-import com.couchbase.client.java.manager.bucket.BucketType;
-import com.couchbase.client.java.manager.bucket.ConflictResolutionType;
-import com.couchbase.client.java.manager.bucket.StorageBackend;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
@@ -13,10 +11,13 @@ public class CapellaTest {
   public String clusterName = "pytest-cluster";
   public String bucketName = "data";
   public String allowedCIDR = "0.0.0.0/0";
+  public String username = "developer";
+  public String password = "#C0uchBas3";
   public static CapellaProject project;
   public static CapellaCluster cluster;
   public static CapellaBucket bucket;
   public static CapellaAllowedCIDR cidr;
+  public static CapellaCredentials user;
 
   @Test
   public void testCapella1() {
@@ -43,6 +44,13 @@ public class CapellaTest {
 
   @Test
   public void testCapella4() {
+    Assertions.assertNotNull(cluster);
+    user = CapellaCredentials.getInstance(cluster);
+    user.createCredential(username, password, new ObjectMapper().createArrayNode());
+  }
+
+  @Test
+  public void testCapella5() {
     Assertions.assertNotNull(cluster);
     bucket = CapellaBucket.getInstance(cluster);
     BucketSettings bucketSettings = BucketSettings.create(bucketName).ramQuotaMB(128);
