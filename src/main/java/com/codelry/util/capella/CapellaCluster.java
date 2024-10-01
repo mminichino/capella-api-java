@@ -235,6 +235,9 @@ public class CapellaCluster {
         LOGGER.debug(e.getMessage(), e);
       } catch (NotFoundError e) {
         LOGGER.debug("Cluster not found");
+        if (state == State.DESTROYING) {
+          return true;
+        }
       } catch (HttpResponseException e) {
         throw new RuntimeException(e.getMessage(), e);
       }
