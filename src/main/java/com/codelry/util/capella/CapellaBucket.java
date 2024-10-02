@@ -1,5 +1,6 @@
 package com.codelry.util.capella;
 
+import com.codelry.util.capella.exceptions.CapellaAPIError;
 import com.codelry.util.capella.exceptions.NotFoundException;
 import com.codelry.util.capella.logic.*;
 import com.codelry.util.rest.REST;
@@ -43,7 +44,7 @@ public class CapellaBucket {
     endpoint = CapellaCluster.endpoint + "/" + CapellaCluster.cluster.id + "/buckets";
   }
 
-  public BucketData isBucket(String name) {
+  public BucketData isBucket(String name) throws CapellaAPIError {
     List<BucketData> buckets = list();
     for (BucketData bucket : buckets) {
       if (name.equals(bucket.name)) {
@@ -53,7 +54,7 @@ public class CapellaBucket {
     return null;
   }
 
-  public void createBucket(BucketSettings bucketSettings) {
+  public void createBucket(BucketSettings bucketSettings) throws CapellaAPIError {
     BucketData check = isBucket(bucketSettings.name());
     if (check != null) {
       LOGGER.debug("Bucket {} already exists", bucketSettings.name());
@@ -84,12 +85,11 @@ public class CapellaBucket {
         throw new RuntimeException("Bucket creation failed");
       }
     } catch (HttpResponseException e) {
-      LOGGER.error("Code: {} Message: {}\n{}", rest.responseCode, new String(rest.responseBody), parameters.toPrettyString());
-      throw new RuntimeException(e.getMessage(), e);
+      throw new CapellaAPIError(rest.responseCode, rest.responseBody, parameters, "Bucket Create Error", e);
     }
   }
 
-  public void delete() {
+  public void delete() throws CapellaAPIError {
     if (bucket != null) {
       try {
         String bucketIdEndpoint = endpoint + "/" + bucket.id;
@@ -97,23 +97,23 @@ public class CapellaBucket {
         LOGGER.debug("Bucket {} deleted", bucket.name);
         bucket = null;
       } catch (HttpResponseException e) {
-        throw new RuntimeException(e.getMessage(), e);
+        throw new CapellaAPIError(rest.responseCode, rest.responseBody, "Bucket Delete Error", e);
       }
     }
   }
 
-  public List<BucketData> list() {
+  public List<BucketData> list() throws CapellaAPIError {
     List<BucketData> result = new ArrayList<>();
     try {
       ArrayNode reply = rest.get(endpoint).validate().json().get("data").deepCopy();
       reply.forEach(o -> result.add(new BucketData(o)));
       return result;
     } catch (HttpResponseException e) {
-      throw new RuntimeException(e.getMessage(), e);
+      throw new CapellaAPIError(rest.responseCode, rest.responseBody, "Bucket List Error", e);
     }
   }
 
-  public BucketData getByName(String bucketName) throws NotFoundException {
+  public BucketData getByName(String bucketName) throws NotFoundException, CapellaAPIError {
     List<BucketData> buckets = list();
     for (BucketData bucket : buckets) {
       if (bucketName.equals(bucket.name)) {
@@ -123,7 +123,7 @@ public class CapellaBucket {
     throw new NotFoundException("Can not find bucket " + bucketName);
   }
 
-  public BucketData getById(String id) throws NotFoundException {
+  public BucketData getById(String id) throws NotFoundException, CapellaAPIError {
     String bucketIdEndpoint = endpoint + "/" + id;
     try {
       JsonNode reply = rest.get(bucketIdEndpoint).validate().json();
@@ -131,11 +131,11 @@ public class CapellaBucket {
     } catch (NotFoundError e) {
       throw new NotFoundException("Bucket not found");
     } catch (HttpResponseException e) {
-      throw new RuntimeException(e.getMessage(), e);
+      throw new CapellaAPIError(rest.responseCode, rest.responseBody, "Bucket Get Error", e);
     }
   }
 
-  public void getBucket(String bucketName) throws NotFoundException {
+  public void getBucket(String bucketName) throws NotFoundException, CapellaAPIError {
     bucket = getByName(bucketName);
   }
 }

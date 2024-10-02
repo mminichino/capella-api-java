@@ -1,5 +1,6 @@
 package com.codelry.util.capella;
 
+import com.codelry.util.capella.exceptions.CapellaAPIError;
 import com.codelry.util.capella.exceptions.NotFoundException;
 import com.codelry.util.capella.logic.*;
 import com.codelry.util.rest.REST;
@@ -220,9 +221,9 @@ public class CapellaCluster {
     }
   }
 
-  public boolean wait(String clusterId, State state, StateWaitOperation operation) {
+  public boolean wait(String clusterId, State state, StateWaitOperation operation) throws CapellaAPIError {
     String clusterIdEndpoint = endpoint + "/" + clusterId;
-    for (int retry = 0; retry < 30; retry++) {
+    for (int retry = 0; retry < 36; retry++) {
       try {
         JsonNode reply = rest.get(clusterIdEndpoint).validate().json();
         boolean check = operation.evaluate(reply.get("currentState").asText().equals(state.toString()));
@@ -239,13 +240,13 @@ public class CapellaCluster {
           return true;
         }
       } catch (HttpResponseException e) {
-        throw new RuntimeException(e.getMessage(), e);
+        throw new CapellaAPIError(rest.responseCode, rest.responseBody, "Cluster Wait Error", e);
       }
     }
     return false;
   }
 
-  public ClusterData isCluster(String name) {
+  public ClusterData isCluster(String name) throws CapellaAPIError {
     List<ClusterData> clusters = list();
     for (ClusterData cluster : clusters) {
       if (name.equals(cluster.name)) {
@@ -255,7 +256,7 @@ public class CapellaCluster {
     return null;
   }
 
-  public void createCluster(ClusterBuilder clusterBuilder) {
+  public void createCluster(ClusterBuilder clusterBuilder) throws CapellaAPIError {
     ClusterData check = isCluster(clusterBuilder.clusterName);
     if (check != null) {
       LOGGER.debug("Cluster {} already exists", clusterBuilder.clusterName);
@@ -274,12 +275,11 @@ public class CapellaCluster {
         throw new RuntimeException("Cluster creation failed");
       }
     } catch (HttpResponseException e) {
-      LOGGER.error("Code: {} Message: {}\n{}", rest.responseCode, new String(rest.responseBody), parameters.toPrettyString());
-      throw new RuntimeException(e.getMessage(), e);
+      throw new CapellaAPIError(rest.responseCode, rest.responseBody, parameters, "Cluster Create Error", e);
     }
   }
 
-  public void delete() {
+  public void delete() throws CapellaAPIError {
     if (cluster != null) {
       try {
         String clusterIdEndpoint = endpoint + "/" + cluster.id;
@@ -288,12 +288,12 @@ public class CapellaCluster {
         wait(cluster.id, State.DESTROYING, StateWaitOperation.NOT_EQUALS);
         cluster = null;
       } catch (HttpResponseException e) {
-        throw new RuntimeException(e.getMessage(), e);
+        throw new CapellaAPIError(rest.responseCode, rest.responseBody, "Cluster Delete Error", e);
       }
     }
   }
 
-  public List<ClusterData> list() {
+  public List<ClusterData> list() throws CapellaAPIError {
     List<ClusterData> result = new ArrayList<>();
     try {
       ArrayNode reply = rest.getPaged(endpoint,
@@ -311,11 +311,11 @@ public class CapellaCluster {
       LOGGER.debug("Project does not have any clusters");
       return result;
     } catch (HttpResponseException e) {
-      throw new RuntimeException(e.getMessage(), e);
+      throw new CapellaAPIError(rest.responseCode, rest.responseBody, "Cluster List Error", e);
     }
   }
 
-  public ClusterData getByName(String clusterName) throws NotFoundException {
+  public ClusterData getByName(String clusterName) throws NotFoundException, CapellaAPIError {
     List<ClusterData> clusters = list();
     for (ClusterData cluster : clusters) {
       if (clusterName.equals(cluster.name)) {
@@ -325,7 +325,7 @@ public class CapellaCluster {
     throw new NotFoundException("Can not find cluster " + clusterName);
   }
 
-  public ClusterData getById(String id) throws NotFoundException {
+  public ClusterData getById(String id) throws NotFoundException, CapellaAPIError {
     String clusterIdEndpoint = endpoint + "/" + id;
     try {
       JsonNode reply = rest.get(clusterIdEndpoint).validate().json();
@@ -333,11 +333,11 @@ public class CapellaCluster {
     } catch (NotFoundError e) {
       throw new NotFoundException("Cluster ID not found");
     } catch (HttpResponseException e) {
-      throw new RuntimeException(e.getMessage(), e);
+      throw new CapellaAPIError(rest.responseCode, rest.responseBody, "Cluster Get Error", e);
     }
   }
 
-  public void getCluster(String clusterName) throws NotFoundException {
+  public void getCluster(String clusterName) throws NotFoundException, CapellaAPIError {
     cluster = getByName(clusterName);
   }
 

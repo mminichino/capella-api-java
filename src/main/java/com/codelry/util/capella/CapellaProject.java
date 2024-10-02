@@ -1,5 +1,6 @@
 package com.codelry.util.capella;
 
+import com.codelry.util.capella.exceptions.CapellaAPIError;
 import com.codelry.util.capella.logic.ProjectData;
 import com.codelry.util.rest.REST;
 import com.codelry.util.rest.exceptions.HttpResponseException;
@@ -40,7 +41,11 @@ public class CapellaProject {
     CapellaProject.user = CapellaUser.getInstance(organization);
     endpoint = CapellaOrganization.endpoint + "/" + CapellaOrganization.organization.id + "/projects";
     projectName = CouchbaseCapella.project;
-    getProject();
+    try {
+      getProject();
+    } catch (CapellaAPIError e) {
+      throw new RuntimeException(e);
+    }
     LOGGER.debug("Project ID: {}", project.id);
   }
 
@@ -56,7 +61,7 @@ public class CapellaProject {
     return project.id;
   }
 
-  public List<ProjectData> listProjects() {
+  public List<ProjectData> listProjects() throws CapellaAPIError {
     List<ProjectData> result = new ArrayList<>();
     try {
       ArrayNode reply = rest.getPaged(endpoint,
@@ -71,21 +76,21 @@ public class CapellaProject {
       reply.forEach(o -> result.add(new ProjectData(o)));
       return result;
     } catch (HttpResponseException e) {
-      throw new RuntimeException(e.getMessage(), e);
+      throw new CapellaAPIError(rest.responseCode, rest.responseBody, "Project List Error", e);
     }
   }
 
-  public ProjectData getProject(String id) {
+  public ProjectData getProject(String id) throws CapellaAPIError {
     String projectIdEndpoint = endpoint + "/" + id;
     try {
       JsonNode reply = rest.get(projectIdEndpoint).validate().json();
       return new ProjectData(reply);
     } catch (HttpResponseException e) {
-      throw new RuntimeException(e.getMessage(), e);
+      throw new CapellaAPIError(rest.responseCode, rest.responseBody, "Project Get Error", e);
     }
   }
 
-  public ProjectData createProject() {
+  public ProjectData createProject() throws CapellaAPIError {
     ObjectMapper mapper = new ObjectMapper();
     ObjectNode parameters = mapper.createObjectNode();
     parameters.put("name", projectName);
@@ -97,11 +102,11 @@ public class CapellaProject {
       user.setProjectOwnership(projectId);
       return new ProjectData(parameters);
     } catch (HttpResponseException e) {
-      throw new RuntimeException(e.getMessage(), e);
+      throw new CapellaAPIError(rest.responseCode, rest.responseBody, parameters, "Project Create Error", e);
     }
   }
 
-  public void getProject() {
+  public void getProject() throws CapellaAPIError {
     List<ProjectData> projects = getByEmail();
     if (!projects.isEmpty()) {
       for (ProjectData pd : projects) {
@@ -114,7 +119,7 @@ public class CapellaProject {
     project = createProject();
   }
 
-  public List<ProjectData> getByEmail() {
+  public List<ProjectData> getByEmail() throws CapellaAPIError {
     List<String> projectIds = user.getProjects();
     List<ProjectData> result = new ArrayList<>();
     for (String projectId : projectIds) {

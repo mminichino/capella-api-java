@@ -1,5 +1,6 @@
 package com.codelry.util.capella;
 
+import com.codelry.util.capella.exceptions.CapellaAPIError;
 import com.codelry.util.capella.exceptions.NotFoundException;
 import com.codelry.util.capella.logic.CredentialData;
 import com.codelry.util.rest.REST;
@@ -13,7 +14,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 
 public class CapellaCredentials {
@@ -40,7 +40,7 @@ public class CapellaCredentials {
     endpoint = CapellaCluster.endpoint + "/" + CapellaCluster.cluster.id + "/users";
   }
 
-  public CredentialData isUser(String username) {
+  public CredentialData isUser(String username) throws CapellaAPIError {
     List<CredentialData> users = list();
     for (CredentialData user : users) {
       if (username.equals(user.name)) {
@@ -50,7 +50,7 @@ public class CapellaCredentials {
     return null;
   }
 
-  public void createCredential(String username, String password, ArrayNode access) {
+  public void createCredential(String username, String password, ArrayNode access) throws CapellaAPIError {
     CredentialData check = isUser(username);
     if (check != null) {
       LOGGER.debug("User {} already exists", username);
@@ -86,12 +86,11 @@ public class CapellaCredentials {
         throw new RuntimeException("User creation failed");
       }
     } catch (HttpResponseException e) {
-      LOGGER.error("Code: {} Message: {}\n{}", rest.responseCode, new String(rest.responseBody), parameters.toPrettyString());
-      throw new RuntimeException(e.getMessage(), e);
+      throw new CapellaAPIError(rest.responseCode, rest.responseBody, parameters, "Credentials Create Error", e);
     }
   }
 
-  public void delete() {
+  public void delete() throws CapellaAPIError {
     if (user != null) {
       try {
         String cidrIdEndpoint = endpoint + "/" + user.id;
@@ -99,12 +98,12 @@ public class CapellaCredentials {
         LOGGER.debug("User {} deleted", user.name);
         user = null;
       } catch (HttpResponseException e) {
-        throw new RuntimeException(e.getMessage(), e);
+        throw new CapellaAPIError(rest.responseCode, rest.responseBody, "Credentials Delete Error", e);
       }
     }
   }
 
-  public List<CredentialData> list() {
+  public List<CredentialData> list() throws CapellaAPIError {
     List<CredentialData> result = new ArrayList<>();
     try {
       ArrayNode reply = rest.getPaged(endpoint,
@@ -119,11 +118,11 @@ public class CapellaCredentials {
       reply.forEach(o -> result.add(new CredentialData(o)));
       return result;
     } catch (HttpResponseException e) {
-      throw new RuntimeException(e.getMessage(), e);
+      throw new CapellaAPIError(rest.responseCode, rest.responseBody, "Credentials List Error", e);
     }
   }
 
-  public CredentialData getByName(String username) throws NotFoundException {
+  public CredentialData getByName(String username) throws NotFoundException, CapellaAPIError {
     List<CredentialData> users = list();
     for (CredentialData user : users) {
       if (username.equals(user.name)) {
@@ -133,7 +132,7 @@ public class CapellaCredentials {
     throw new NotFoundException("Can not find user " + username);
   }
 
-  public CredentialData getById(String id) throws NotFoundException {
+  public CredentialData getById(String id) throws NotFoundException, CapellaAPIError {
     String userIdEndpoint = endpoint + "/" + id;
     try {
       JsonNode reply = rest.get(userIdEndpoint).validate().json();
@@ -141,11 +140,11 @@ public class CapellaCredentials {
     } catch (NotFoundError e) {
       throw new NotFoundException("CIDR not found");
     } catch (HttpResponseException e) {
-      throw new RuntimeException(e.getMessage(), e);
+      throw new CapellaAPIError(rest.responseCode, rest.responseBody, "Credentials Get Error", e);
     }
   }
 
-  public void getCredential(String username) throws NotFoundException {
+  public void getCredential(String username) throws NotFoundException, CapellaAPIError {
     user = getByName(username);
   }
 }

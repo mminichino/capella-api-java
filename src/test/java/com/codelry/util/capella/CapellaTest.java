@@ -1,5 +1,6 @@
 package com.codelry.util.capella;
 
+import com.codelry.util.capella.exceptions.CapellaAPIError;
 import com.couchbase.client.core.deps.io.netty.handler.ssl.util.InsecureTrustManagerFactory;
 import com.couchbase.client.core.env.PasswordAuthenticator;
 import com.couchbase.client.core.env.SecurityConfig;
@@ -47,7 +48,7 @@ public class CapellaTest {
   }
 
   @Test
-  public void testCapella2() {
+  public void testCapella2() throws CapellaAPIError {
     cluster = CapellaCluster.getInstance(project);
     CapellaCluster.ClusterBuilder clusterBuilder = new CapellaCluster.ClusterBuilder();
     clusterBuilder.clusterName(clusterName);
@@ -55,21 +56,21 @@ public class CapellaTest {
   }
 
   @Test
-  public void testCapella3() {
+  public void testCapella3() throws CapellaAPIError {
     Assertions.assertNotNull(cluster);
     cidr = CapellaAllowedCIDR.getInstance(cluster);
     cidr.createAllowedCIDR(allowedCIDR);
   }
 
   @Test
-  public void testCapella4() {
+  public void testCapella4() throws CapellaAPIError {
     Assertions.assertNotNull(cluster);
     user = CapellaCredentials.getInstance(cluster);
     user.createCredential(username, password, new ObjectMapper().createArrayNode());
   }
 
   @Test
-  public void testCapella5() {
+  public void testCapella5() throws CapellaAPIError {
     Assertions.assertNotNull(cluster);
     bucket = CapellaBucket.getInstance(cluster);
     BucketSettings bucketSettings = BucketSettings.create(bucketName).ramQuotaMB(128);
@@ -108,13 +109,13 @@ public class CapellaTest {
   }
 
   @Test
-  public void testCapella7() {
+  public void testCapella7() throws CapellaAPIError {
     Assertions.assertNotNull(bucket);
     bucket.delete();
   }
 
   @Test
-  public void testCapella8() {
+  public void testCapella8() throws CapellaAPIError {
     Assertions.assertNotNull(cluster);
     cluster.delete();
   }

@@ -1,5 +1,6 @@
 package com.codelry.util.capella;
 
+import com.codelry.util.capella.exceptions.CapellaAPIError;
 import com.codelry.util.capella.logic.OrganizationData;
 import com.codelry.util.rest.REST;
 import com.codelry.util.rest.exceptions.HttpResponseException;
@@ -30,26 +31,26 @@ public class CapellaOrganization {
 
   public void attach(CouchbaseCapella capella) {
     CapellaOrganization.capella = capella;
-    CapellaOrganization.rest = capella.rest;
+    CapellaOrganization.rest = CouchbaseCapella.rest;
     organization = getDefaultOrg();
     LOGGER.debug("Organization ID: {}", organization.id);
   }
 
-  public List<OrganizationData> list() {
+  public List<OrganizationData> list() throws CapellaAPIError {
     List<OrganizationData> result = new ArrayList<>();
     try {
       ArrayNode reply = rest.get(endpoint).validate().json().get("data").deepCopy();
       reply.forEach(o -> result.add(new OrganizationData(o)));
       return result;
     } catch (HttpResponseException e) {
-      throw new RuntimeException(e.getMessage(), e);
+      throw new CapellaAPIError(rest.responseCode, rest.responseBody, "Organization List Error", e);
     }
   }
 
   public OrganizationData getDefaultOrg() {
     try {
       return list().get(0);
-    } catch (IndexOutOfBoundsException e) {
+    } catch (IndexOutOfBoundsException | CapellaAPIError e) {
       return new OrganizationData();
     }
   }

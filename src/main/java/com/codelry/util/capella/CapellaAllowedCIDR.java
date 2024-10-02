@@ -1,5 +1,6 @@
 package com.codelry.util.capella;
 
+import com.codelry.util.capella.exceptions.CapellaAPIError;
 import com.codelry.util.capella.exceptions.NotFoundException;
 import com.codelry.util.capella.logic.AllowedCIDRData;
 import com.codelry.util.rest.REST;
@@ -40,7 +41,7 @@ public class CapellaAllowedCIDR {
     endpoint = CapellaCluster.endpoint + "/" + CapellaCluster.cluster.id + "/allowedcidrs";
   }
 
-  public AllowedCIDRData isCIDR(String network) {
+  public AllowedCIDRData isCIDR(String network) throws CapellaAPIError {
     List<AllowedCIDRData> cidrs = list();
     for (AllowedCIDRData cidr : cidrs) {
       if (network.equals(cidr.cidr)) {
@@ -50,7 +51,7 @@ public class CapellaAllowedCIDR {
     return null;
   }
 
-  public void createAllowedCIDR(String network) {
+  public void createAllowedCIDR(String network) throws CapellaAPIError {
     AllowedCIDRData check = isCIDR(network);
     if (check != null) {
       LOGGER.debug("CIDR {} already allowed", network);
@@ -67,15 +68,14 @@ public class CapellaAllowedCIDR {
       try {
         cidr = getById(cidrId);
       } catch (NotFoundException e) {
-        throw new RuntimeException("Bucket creation failed");
+        throw new RuntimeException("Allowed CIDR creation failed");
       }
     } catch (HttpResponseException e) {
-      LOGGER.error("Code: {} Message: {}\n{}", rest.responseCode, new String(rest.responseBody), parameters.toPrettyString());
-      throw new RuntimeException(e.getMessage(), e);
+      throw new CapellaAPIError(rest.responseCode, rest.responseBody, parameters, "Allowed CIDR Create Error", e);
     }
   }
 
-  public void delete() {
+  public void delete() throws CapellaAPIError {
     if (cidr != null) {
       try {
         String cidrIdEndpoint = endpoint + "/" + cidr.id;
@@ -83,12 +83,12 @@ public class CapellaAllowedCIDR {
         LOGGER.debug("CIDR {} deleted", cidr.cidr);
         cidr = null;
       } catch (HttpResponseException e) {
-        throw new RuntimeException(e.getMessage(), e);
+        throw new CapellaAPIError(rest.responseCode, rest.responseBody, "Allowed CIDR Delete Error", e);
       }
     }
   }
 
-  public List<AllowedCIDRData> list() {
+  public List<AllowedCIDRData> list() throws CapellaAPIError {
     List<AllowedCIDRData> result = new ArrayList<>();
     try {
       ArrayNode reply = rest.getPaged(endpoint,
@@ -103,11 +103,11 @@ public class CapellaAllowedCIDR {
       reply.forEach(o -> result.add(new AllowedCIDRData(o)));
       return result;
     } catch (HttpResponseException e) {
-      throw new RuntimeException(e.getMessage(), e);
+      throw new CapellaAPIError(rest.responseCode, rest.responseBody, "Allowed CIDR List Error", e);
     }
   }
 
-  public AllowedCIDRData getByName(String network) throws NotFoundException {
+  public AllowedCIDRData getByName(String network) throws NotFoundException, CapellaAPIError {
     List<AllowedCIDRData> cidrs = list();
     for (AllowedCIDRData cidr : cidrs) {
       if (network.equals(cidr.cidr)) {
@@ -117,7 +117,7 @@ public class CapellaAllowedCIDR {
     throw new NotFoundException("Can not find allowed CIDR " + network);
   }
 
-  public AllowedCIDRData getById(String id) throws NotFoundException {
+  public AllowedCIDRData getById(String id) throws NotFoundException, CapellaAPIError {
     String cidrIdEndpoint = endpoint + "/" + id;
     try {
       JsonNode reply = rest.get(cidrIdEndpoint).validate().json();
@@ -125,11 +125,11 @@ public class CapellaAllowedCIDR {
     } catch (NotFoundError e) {
       throw new NotFoundException("CIDR not found");
     } catch (HttpResponseException e) {
-      throw new RuntimeException(e.getMessage(), e);
+      throw new CapellaAPIError(rest.responseCode, rest.responseBody, "Allowed CIDR Get Error", e);
     }
   }
 
-  public void getAllowedCIDR(String network) throws NotFoundException {
+  public void getAllowedCIDR(String network) throws NotFoundException, CapellaAPIError {
     cidr = getByName(network);
   }
 }

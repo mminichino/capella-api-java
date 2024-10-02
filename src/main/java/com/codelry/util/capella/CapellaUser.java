@@ -1,5 +1,6 @@
 package com.codelry.util.capella;
 
+import com.codelry.util.capella.exceptions.CapellaAPIError;
 import com.codelry.util.capella.logic.ResourcesData;
 import com.codelry.util.capella.logic.UserData;
 import com.codelry.util.rest.REST;
@@ -47,7 +48,7 @@ public class CapellaUser {
     }
   }
 
-  public List<UserData> listUsers() {
+  public List<UserData> listUsers() throws CapellaAPIError {
     List<UserData> result = new ArrayList<>();
     try {
       ArrayNode reply = rest.getPaged(endpoint,
@@ -62,11 +63,11 @@ public class CapellaUser {
       reply.forEach(o -> result.add(new UserData(o)));
       return result;
     } catch (HttpResponseException e) {
-      throw new RuntimeException(e.getMessage(), e);
+      throw new CapellaAPIError(rest.responseCode, rest.responseBody, "User List Error", e);
     }
   }
 
-  public UserData getByEmail(String email) {
+  public UserData getByEmail(String email) throws CapellaAPIError {
     for (UserData user : listUsers()) {
       if (user.email.equals(email)) {
         return user;
@@ -75,7 +76,7 @@ public class CapellaUser {
     throw new RuntimeException("No user for email: " + email);
   }
 
-  public UserData getByEmail() {
+  public UserData getByEmail() throws CapellaAPIError {
     for (UserData user : listUsers()) {
       if (user.email.equals(email)) {
         return user;
@@ -94,7 +95,7 @@ public class CapellaUser {
     return result;
   }
 
-  public void setProjectOwnership(String projectId) {
+  public void setProjectOwnership(String projectId) throws CapellaAPIError {
     String userIdEndpoint = endpoint + "/" + user.id;
     ObjectMapper mapper = new ObjectMapper();
     ObjectNode parameters = mapper.createObjectNode();
@@ -112,7 +113,7 @@ public class CapellaUser {
     try {
       rest.patch(userIdEndpoint, payload).validate().json();
     } catch (HttpResponseException e) {
-      throw new RuntimeException(e.getMessage(), e);
+      throw new CapellaAPIError(rest.responseCode, rest.responseBody, parameters, "User Set Error", e);
     }
   }
 }
