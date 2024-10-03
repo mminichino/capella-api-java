@@ -1,11 +1,15 @@
+import org.jreleaser.model.Active
 import java.io.ByteArrayOutputStream
 
 plugins {
     id("java")
+    id("java-library")
+    id("maven-publish")
+    id("org.jreleaser") version "1.14.0"
 }
 
 group = "com.codelry.util"
-version = "1.0.0"
+version = "1.0.1"
 
 repositories {
     mavenCentral()
@@ -52,5 +56,64 @@ tasks.register("pushToGithub") {
             standardOutput = stdout
         }
         println(stdout)
+    }
+}
+
+publishing {
+    publications {
+        create("maven", MavenPublication::class) {
+            groupId = project.group.toString()
+            artifactId = project.name
+
+            from(components["java"])
+
+            pom {
+                name.set(project.name)
+                description.set("Java Capella API Wrapper")
+                url.set("https://github.com/mminichino/capella-api-java")
+                inceptionYear.set("2024")
+                licenses {
+                    license {
+                        name.set("Apache-2.0")
+                        url.set("https://spdx.org/licenses/Apache-2.0.html")
+                    }
+                }
+                developers {
+                    developer {
+                        id.set("mminichino")
+                        name.set("Michael Minichino")
+                    }
+                }
+                scm {
+                    connection.set("scm:git:https://github.com/mminichino/capella-api-java.git")
+                    developerConnection.set("scm:git:ssh://git@github.com/mminichino/capella-api-java.git")
+                    url.set("https://github.com/mminichino/capella-api-java")
+                }
+            }
+        }
+    }
+
+    repositories {
+        maven {
+            url = layout.buildDirectory.dir("staging-deploy").get().asFile.toURI()
+        }
+    }
+}
+
+jreleaser {
+    signing {
+        active.set(Active.ALWAYS)
+        armored.set(true)
+    }
+    deploy {
+        maven {
+            mavenCentral {
+                create("sonatype") {
+                    active.set(Active.ALWAYS)
+                    url.set("https://central.sonatype.com/api/v1/publisher")
+                    stagingRepository("build/staging-deploy")
+                }
+            }
+        }
     }
 }

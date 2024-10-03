@@ -35,51 +35,89 @@ public class CapellaCluster {
     return instance;
   }
 
+  public static CapellaCluster getInstance(CapellaProject project, ClusterConfig clusterConfig) {
+    if (instance == null) {
+      instance = new CapellaCluster();
+      instance.attach(project, clusterConfig);
+    }
+    return instance;
+  }
+
+  public static CapellaCluster getInstance(CapellaProject project, String clusterName, ClusterConfig clusterConfig) {
+    if (instance == null) {
+      instance = new CapellaCluster();
+      instance.attach(project, clusterName, clusterConfig);
+    }
+    return instance;
+  }
+
   public void attach(CapellaProject project) {
     CapellaCluster.project = project;
     CapellaCluster.rest = CouchbaseCapella.rest;
     endpoint = CapellaProject.endpoint + "/" + CapellaProject.project.id + "/clusters";
+    try {
+      getCluster();
+    } catch (NotFoundException | CapellaAPIError e) {
+      throw new RuntimeException("Can not find cluster " + (CouchbaseCapella.hasDatabaseId() ? CouchbaseCapella.getDatabaseId() : CouchbaseCapella.getDatabaseName()), e);
+    }
   }
 
-  public static class ServiceGroupBuilder {
-    private CloudType cloudType = CloudType.AWS;
+  public void attach(CapellaProject project, ClusterConfig clusterConfig) {
+    CapellaCluster.project = project;
+    CapellaCluster.rest = CouchbaseCapella.rest;
+    endpoint = CapellaProject.endpoint + "/" + CapellaProject.project.id + "/clusters";
+    clusterName = CouchbaseCapella.hasDatabaseName() ? CouchbaseCapella.getDatabaseName() : NameGenerator.getRandomName();
+    try {
+      createCluster(clusterName, clusterConfig);
+    } catch (CapellaAPIError e) {
+      throw new RuntimeException("Can not create cluster " + clusterName, e);
+    }
+  }
+
+  public void attach(CapellaProject project, String clusterName, ClusterConfig clusterConfig) {
+    CapellaCluster.project = project;
+    CapellaCluster.rest = CouchbaseCapella.rest;
+    endpoint = CapellaProject.endpoint + "/" + CapellaProject.project.id + "/clusters";
+    try {
+      createCluster(clusterName, clusterConfig);
+    } catch (CapellaAPIError e) {
+      throw new RuntimeException("Can not create cluster " + clusterName, e);
+    }
+  }
+
+  public static class ServiceGroupConfig {
     private int cpu = 4;
     private int ram = 16;
     private int storage = 256;
     private int numOfNodes = 3;
     private List<String> services = new ArrayList<>(Arrays.asList("data", "query", "index", "search"));
 
-    public ServiceGroupBuilder cpu(int cpu) {
+    public ServiceGroupConfig cpu(int cpu) {
       this.cpu = cpu;
       return this;
     }
 
-    public ServiceGroupBuilder ram(int ram) {
+    public ServiceGroupConfig ram(int ram) {
       this.ram = ram;
       return this;
     }
 
-    public ServiceGroupBuilder storage(int storage) {
+    public ServiceGroupConfig storage(int storage) {
       this.storage = storage;
       return this;
     }
 
-    public ServiceGroupBuilder numOfNodes(int numOfNodes) {
+    public ServiceGroupConfig numOfNodes(int numOfNodes) {
       this.numOfNodes = numOfNodes;
       return this;
     }
 
-    public ServiceGroupBuilder services(List<String> services) {
+    public ServiceGroupConfig services(List<String> services) {
       this.services = services;
       return this;
     }
 
-    public ServiceGroupBuilder cloud(CloudType cloud) {
-      this.cloudType = cloud;
-      return this;
-    }
-
-    private StorageConfig getStorageConfig() {
+    private StorageConfig getStorageConfig(CloudType cloudType) {
       switch (cloudType) {
         case AWS:
           return new AWSStorageConfig(storage);
@@ -90,7 +128,7 @@ public class CapellaCluster {
       }
     }
 
-    public JsonNode build() {
+    public JsonNode create(CloudType cloud) {
       ObjectMapper mapper = new ObjectMapper();
       ObjectNode node = mapper.createObjectNode();
       node.put("numOfNodes", numOfNodes);
@@ -104,14 +142,13 @@ public class CapellaCluster {
       computeObject.put("cpu", cpu);
       computeObject.put("ram", ram);
       nodeObject.set("compute", computeObject);
-      nodeObject.set("disk", getStorageConfig().asJson());
+      nodeObject.set("disk", getStorageConfig(cloud).asJson());
       node.set("node", nodeObject);
       return node;
     }
   }
 
-  public static class ClusterBuilder {
-    private String clusterName = "cbdb";
+  public static class ClusterConfig {
     private String description = "Automation Managed Cluster";
     private CloudType cloudType = CloudType.AWS;
     private String cloudRegion = "us-east-1";
@@ -120,67 +157,61 @@ public class CapellaCluster {
     private AvailabilityType availabilityType = AvailabilityType.MULTI_ZONE;
     private SupportPlanType supportPlan = SupportPlanType.DEVELOPER;
     private TimeZoneType timeZone = TimeZoneType.US_WEST;
-    private List<ServiceGroupBuilder> serviceGroups = new ArrayList<>();
+    private List<ServiceGroupConfig> serviceGroups = new ArrayList<>();
 
-    public ClusterBuilder clusterName(String clusterName) {
-      this.clusterName = clusterName;
-      return this;
-    }
-
-    public ClusterBuilder description(String description) {
+    public ClusterConfig description(String description) {
       this.description = description;
       return this;
     }
 
-    public ClusterBuilder cloudType(CloudType cloudType) {
+    public ClusterConfig cloudType(CloudType cloudType) {
       this.cloudType = cloudType;
       return this;
     }
 
-    public ClusterBuilder cloudRegion(String cloudRegion) {
+    public ClusterConfig cloudRegion(String cloudRegion) {
       this.cloudRegion = cloudRegion;
       return this;
     }
 
-    public ClusterBuilder cidr(String cidr) {
+    public ClusterConfig cidr(String cidr) {
       this.cidr = cidr;
       return this;
     }
 
-    public ClusterBuilder version(String version) {
+    public ClusterConfig version(String version) {
       this.version = version;
       return this;
     }
 
-    public ClusterBuilder availability(AvailabilityType availability) {
+    public ClusterConfig availability(AvailabilityType availability) {
       this.availabilityType = availability;
       return this;
     }
 
-    public ClusterBuilder supportPlan(SupportPlanType supportPlan) {
+    public ClusterConfig supportPlan(SupportPlanType supportPlan) {
       this.supportPlan = supportPlan;
       return this;
     }
 
-    public ClusterBuilder timeZone(TimeZoneType timeZone) {
+    public ClusterConfig timeZone(TimeZoneType timeZone) {
       this.timeZone = timeZone;
       return this;
     }
 
-    public ClusterBuilder serviceGroups(List<ServiceGroupBuilder> serviceGroups) {
+    public ClusterConfig serviceGroups(List<ServiceGroupConfig> serviceGroups) {
       this.serviceGroups = serviceGroups;
       return this;
     }
 
-    public ClusterBuilder addServiceGroup(ServiceGroupBuilder serviceGroup) {
-      serviceGroup.cloud(cloudType);
+    public ClusterConfig addServiceGroup(ServiceGroupConfig serviceGroup) {
       this.serviceGroups.add(serviceGroup);
       return this;
     }
 
-    public JsonNode build() {
+    public JsonNode create(String clusterName) {
       if (serviceGroups.isEmpty()) {
-        addServiceGroup(new ServiceGroupBuilder());
+        addServiceGroup(new ServiceGroupConfig());
       }
       ObjectMapper mapper = new ObjectMapper();
       ObjectNode node = mapper.createObjectNode();
@@ -203,8 +234,8 @@ public class CapellaCluster {
       node.set("couchbaseServer", couchbaseServer);
 
       ArrayNode serviceGroupsNode = mapper.createArrayNode();
-      for (ServiceGroupBuilder serviceGroup : serviceGroups) {
-        serviceGroupsNode.add(serviceGroup.build());
+      for (ServiceGroupConfig serviceGroup : serviceGroups) {
+        serviceGroupsNode.add(serviceGroup.create(cloudType));
       }
       node.set("serviceGroups", serviceGroupsNode);
 
@@ -256,14 +287,14 @@ public class CapellaCluster {
     return null;
   }
 
-  public void createCluster(ClusterBuilder clusterBuilder) throws CapellaAPIError {
-    ClusterData check = isCluster(clusterBuilder.clusterName);
+  public void createCluster(String clusterName, ClusterConfig clusterConfig) throws CapellaAPIError {
+    ClusterData check = isCluster(clusterName);
     if (check != null) {
-      LOGGER.debug("Cluster {} already exists", clusterBuilder.clusterName);
+      LOGGER.debug("Cluster {} already exists", clusterName);
       cluster = check;
       return;
     }
-    JsonNode parameters = clusterBuilder.build();
+    JsonNode parameters = clusterConfig.create(clusterName);
     try {
       JsonNode reply = rest.post(endpoint, parameters).validate().json();
       String clusterId = reply.get("id").asText();
@@ -339,6 +370,14 @@ public class CapellaCluster {
 
   public void getCluster(String clusterName) throws NotFoundException, CapellaAPIError {
     cluster = getByName(clusterName);
+  }
+
+  public void getCluster() throws NotFoundException, CapellaAPIError {
+    if (CouchbaseCapella.hasDatabaseId()) {
+      cluster = getById(CouchbaseCapella.getDatabaseId());
+    } else if (CouchbaseCapella.hasDatabaseName()) {
+      cluster = getByName(CouchbaseCapella.getDatabaseName());
+    }
   }
 
   public String getConnectString() {

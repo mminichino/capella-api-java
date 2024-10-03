@@ -13,20 +13,21 @@ import com.couchbase.client.java.env.ClusterEnvironment;
 import com.couchbase.client.java.manager.bucket.BucketSettings;
 import com.couchbase.client.java.manager.collection.CollectionManager;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.junit.jupiter.api.Assertions;
-import org.junit.jupiter.api.Test;
-
-import java.time.Duration;
-import java.util.function.Consumer;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Test;
 
-public class CapellaTest {
-  private static final Logger LOGGER = LogManager.getLogger(CapellaTest.class);
-  public String profileName = "pytest";
-  public String projectName = "pytest-project";
-  public String clusterName = "pytest-cluster";
+import java.io.IOException;
+import java.time.Duration;
+import java.util.Properties;
+import java.util.function.Consumer;
+
+public class CapellaProperty1Test {
+  private static final Logger LOGGER = LogManager.getLogger(CapellaProperty1Test.class);
+  private static final String propertyFile = "test.1.properties";
+  public static Properties properties;
   public String bucketName = "data";
   public String scopeName = "group";
   public String collectionName = "table";
@@ -39,20 +40,30 @@ public class CapellaTest {
   public static CapellaAllowedCIDR cidr;
   public static CapellaCredentials user;
 
+  @BeforeAll
+  public static void setUpBeforeClass() {
+    ClassLoader loader = Thread.currentThread().getContextClassLoader();
+    properties = new Properties();
+
+    LOGGER.info("Testing with properties file: {}", propertyFile);
+    try {
+      properties.load(loader.getResourceAsStream(propertyFile));
+    } catch (IOException e) {
+      LOGGER.debug("can not open properties file: {}", e.getMessage(), e);
+    }
+  }
+
   @Test
   public void testCapella1() {
-    CouchbaseCapella capella = CouchbaseCapella.getInstance(projectName, profileName);
+    CouchbaseCapella capella = CouchbaseCapella.getInstance(properties);
     CapellaOrganization organization = CapellaOrganization.getInstance(capella);
     project = CapellaProject.getInstance(organization);
     Assertions.assertNotNull(project.getId());
   }
 
   @Test
-  public void testCapella2() throws CapellaAPIError {
-    cluster = CapellaCluster.getInstance(project);
-    CapellaCluster.ClusterBuilder clusterBuilder = new CapellaCluster.ClusterBuilder();
-    clusterBuilder.clusterName(clusterName);
-    cluster.createCluster(clusterBuilder);
+  public void testCapella2() {
+    cluster = CapellaCluster.getInstance(project, new CapellaCluster.ClusterConfig());
   }
 
   @Test

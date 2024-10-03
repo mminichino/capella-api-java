@@ -1,9 +1,12 @@
 package com.codelry.util.capella;
 
 import com.codelry.util.capella.exceptions.CapellaAPIError;
+import com.codelry.util.capella.exceptions.NotFoundException;
 import com.codelry.util.capella.logic.OrganizationData;
 import com.codelry.util.rest.REST;
 import com.codelry.util.rest.exceptions.HttpResponseException;
+import com.codelry.util.rest.exceptions.NotFoundError;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -47,11 +50,39 @@ public class CapellaOrganization {
     }
   }
 
+  public OrganizationData getById(String id) throws CapellaAPIError, NotFoundException {
+    String orgIdEndpoint = endpoint + "/" + id;
+    try {
+      JsonNode reply = rest.get(orgIdEndpoint).validate().json();
+      return new OrganizationData(reply);
+    } catch (NotFoundError e) {
+      throw new NotFoundException("Organization ID not found");
+    } catch (HttpResponseException e) {
+      throw new CapellaAPIError(rest.responseCode, rest.responseBody, "Organization Get Error", e);
+    }
+  }
+
+  public OrganizationData getByName(String clusterName) throws NotFoundException, CapellaAPIError {
+    List<OrganizationData> organizations = list();
+    for (OrganizationData organization : organizations) {
+      if (clusterName.equals(organization.name)) {
+        return organization;
+      }
+    }
+    throw new NotFoundException("Can not find cluster " + clusterName);
+  }
+
   public OrganizationData getDefaultOrg() {
     try {
-      return list().get(0);
-    } catch (IndexOutOfBoundsException | CapellaAPIError e) {
-      return new OrganizationData();
+      if (CouchbaseCapella.hasOrganizationId()) {
+        return getById(CouchbaseCapella.getOrganizationId());
+      } else if (CouchbaseCapella.hasOrganizationName()) {
+        return getByName(CouchbaseCapella.getOrganizationName());
+      } else {
+        return list().get(0);
+      }
+    } catch (NotFoundException | IndexOutOfBoundsException | CapellaAPIError e) {
+      throw new RuntimeException("Can not find the Capella Organization");
     }
   }
 }

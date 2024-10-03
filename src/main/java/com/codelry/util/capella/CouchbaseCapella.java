@@ -2,6 +2,7 @@ package com.codelry.util.capella;
 
 import java.io.*;
 import java.nio.file.*;
+import java.util.Properties;
 
 import org.apache.commons.configuration2.INIConfiguration;
 import org.apache.commons.configuration2.SubnodeConfiguration;
@@ -19,19 +20,43 @@ public class CouchbaseCapella {
   private static final String DEFAULT_PROFILE = "default";
   private static CouchbaseCapella instance;
 
+  public static final String CAPELLA_ORGANIZATION_NAME = "capella.organization.name";
+  public static final String CAPELLA_ORGANIZATION_ID = "capella.organization.id";
+  public static final String CAPELLA_PROJECT_NAME = "capella.project.name";
+  public static final String CAPELLA_PROJECT_ID = "capella.project.id";
+  public static final String CAPELLA_DATABASE_NAME = "capella.database.name";
+  public static final String CAPELLA_DATABASE_ID = "capella.database.id";
+  public static final String CAPELLA_COLUMNAR_NAME = "capella.columnar.name";
+  public static final String CAPELLA_COLUMNAR_ID = "capella.columnar.id";
+  public static final String CAPELLA_TOKEN = "capella.token";
+  public static final String CAPELLA_API_HOST = "capella.api.host";
+  public static final String CAPELLA_USER_EMAIL = "capella.user.email";
+  public static final String CAPELLA_USER_ID = "capella.user.id";
+
+  public static final String CAPELLA_DEFAULT_PROJECT_NAME = "default";
+  public static final String CAPELLA_DEFAULT_API_HOST = "cloudapi.cloud.couchbase.com";
+
   private static final Path homeDir = Paths.get(System.getProperty("user.home"));
   private static final Path configDirectory = homeDir.resolve(CONFIG_DIRECTORY);
   private static final Path configFile = configDirectory.resolve(CONFIG_FILE);
 
   public static REST rest;
   public static String profile;
-  public static String project;
+  public static String organizationName;
+  public static String organizationId;
+  public static String projectName;
+  public static String projectId;
+  public static String databaseName;
+  public static String databaseId;
+  public static String columnarName;
+  public static String columnarId;
 
   private static String apiHost;
   private static String tokenFile;
   private static Path tokenFilePath = configDirectory.resolve(DEFAULT_API_KEY_TOKEN);
   private static String organization;
   private static String accountEmail;
+  private static String accountId;
   private static String profileKeyId;
   private static String profileToken;
 
@@ -45,11 +70,27 @@ public class CouchbaseCapella {
     return instance;
   }
 
+  public static CouchbaseCapella getInstance(Properties properties) {
+    if (instance == null) {
+      instance = new CouchbaseCapella();
+      instance.init(properties);
+    }
+    return instance;
+  }
+
   public void init(String project, String profile) {
     CouchbaseCapella.profile = (profile != null) ? profile : DEFAULT_PROFILE;
-    CouchbaseCapella.project = (project != null) ? project : DEFAULT_PROFILE;
+    CouchbaseCapella.projectName = (project != null) ? project : DEFAULT_PROFILE;
     LOGGER.debug("using profile: {}", CouchbaseCapella.profile);
     processConfig();
+    rest = new REST(apiHost, profileToken, true);
+  }
+
+  public void init(Properties properties) {
+    processProperties(properties);
+    if (profileToken == null) {
+      throw new RuntimeException(String.format("please set property %s to provide the API v4 token", CAPELLA_TOKEN));
+    }
     rest = new REST(apiHost, profileToken, true);
   }
 
@@ -60,6 +101,21 @@ public class CouchbaseCapella {
       readConfig(profile);
     }
     readToken();
+  }
+
+  private void processProperties(Properties properties) {
+    CouchbaseCapella.organizationName = properties.getProperty(CAPELLA_ORGANIZATION_NAME);
+    CouchbaseCapella.organizationId = properties.getProperty(CAPELLA_ORGANIZATION_ID);
+    CouchbaseCapella.projectName = properties.getProperty(CAPELLA_PROJECT_NAME, CAPELLA_DEFAULT_PROJECT_NAME);
+    CouchbaseCapella.projectId = properties.getProperty(CAPELLA_PROJECT_ID);
+    CouchbaseCapella.databaseName = properties.getProperty(CAPELLA_DATABASE_NAME);
+    CouchbaseCapella.databaseId = properties.getProperty(CAPELLA_DATABASE_ID);
+    CouchbaseCapella.columnarName = properties.getProperty(CAPELLA_COLUMNAR_NAME);
+    CouchbaseCapella.columnarId = properties.getProperty(CAPELLA_COLUMNAR_ID);
+    CouchbaseCapella.accountEmail = properties.getProperty(CAPELLA_USER_EMAIL);
+    CouchbaseCapella.accountId = properties.getProperty(CAPELLA_USER_ID);
+    apiHost = properties.getProperty(CAPELLA_API_HOST, CAPELLA_DEFAULT_API_HOST);
+    profileToken = properties.getProperty(CAPELLA_TOKEN);
   }
 
   private void readConfig(String profile) {
@@ -76,12 +132,12 @@ public class CouchbaseCapella {
     tokenFile = getProperty(profileConfig, "token_file", tokenFile);
     tokenFilePath = configDirectory.resolve(tokenFile);
     organization = getProperty(profileConfig, "organization", organization);
-    project = getProperty(profileConfig, "project", project);
+    projectName = getProperty(profileConfig, "project", projectName);
     accountEmail = getProperty(profileConfig, "account_email", accountEmail);
 
     LOGGER.debug("Token File Path: {}", tokenFilePath);
     LOGGER.debug("Organization: {}", organization);
-    LOGGER.debug("Project: {}", project);
+    LOGGER.debug("Project: {}", projectName);
     LOGGER.debug("Email: {}", accountEmail);
   }
 
@@ -163,59 +219,163 @@ public class CouchbaseCapella {
     }
   }
 
-  public String getApiHost() {
+  public static String getApiHost() {
     return apiHost;
   }
 
-  public void setApiHost(String apiHost) {
+  public static void setApiHost(String apiHost) {
     CouchbaseCapella.apiHost = apiHost;
   }
 
-  public String getTokenFile() {
+  public static String getTokenFile() {
     return tokenFile;
   }
 
-  public void setTokenFile(String tokenFile) {
+  public static void setTokenFile(String tokenFile) {
     CouchbaseCapella.tokenFile = tokenFile;
   }
 
-  public String getOrganization() {
+  public static String getOrganization() {
     return organization;
   }
 
-  public void setOrganization(String organization) {
+  public static void setOrganization(String organization) {
     CouchbaseCapella.organization = organization;
   }
 
-  public String getProjectName() {
-    return project;
+  public static String getProjectName() {
+    return projectName;
   }
 
-  public void setProjectName(String project) {
-    CouchbaseCapella.project = project;
+  public static void setProjectName(String project) {
+    CouchbaseCapella.projectName = project;
   }
 
-  public String getAccountEmail() {
+  public static String getAccountId() {
+    return accountId;
+  }
+
+  public static void setAccountId(String accountId) {
+    CouchbaseCapella.accountId = accountId;
+  }
+
+  public static String getAccountEmail() {
     return accountEmail;
   }
 
-  public void setAccountEmail(String accountEmail) {
+  public static void setAccountEmail(String accountEmail) {
     CouchbaseCapella.accountEmail = accountEmail;
   }
 
-  public String getProfileKeyId() {
+  public static String getProfileKeyId() {
     return profileKeyId;
   }
 
-  public void setProfileKeyId(String profileKeyId) {
+  public static void setProfileKeyId(String profileKeyId) {
     CouchbaseCapella.profileKeyId = profileKeyId;
   }
 
-  public String getProfileToken() {
+  public static String getProfileToken() {
     return profileToken;
   }
 
-  public void setProfileToken(String profileToken) {
+  public static void setProfileToken(String profileToken) {
     CouchbaseCapella.profileToken = profileToken;
+  }
+
+  public static boolean hasAccountId() {
+    return accountId != null;
+  }
+
+  public static boolean hasAccountEmail() {
+    return accountEmail != null;
+  }
+
+  public static boolean hasOrganizationName() {
+    return organizationName != null;
+  }
+
+  public static boolean hasProjectName() {
+    return projectName != null;
+  }
+
+  public static boolean hasDatabaseName() {
+    return databaseName != null;
+  }
+
+  public static boolean hasColumnarName() {
+    return columnarName != null;
+  }
+
+  public static boolean hasOrganizationId() {
+    return organizationId != null;
+  }
+
+  public static boolean hasProjectId() {
+    return projectId != null;
+  }
+
+  public static boolean hasDatabaseId() {
+    return databaseId != null;
+  }
+
+  public static boolean hasColumnarId() {
+    return columnarId != null;
+  }
+
+  public static String getOrganizationName() {
+    return organizationName;
+  }
+
+  public static void setOrganizationName(String organizationName) {
+    CouchbaseCapella.organizationName = organizationName;
+  }
+
+  public static String getOrganizationId() {
+    return organizationId;
+  }
+
+  public static void setOrganizationId(String organizationId) {
+    CouchbaseCapella.organizationId = organizationId;
+  }
+
+  public static String getProjectId() {
+    return projectId;
+  }
+
+  public static void setProjectId(String projectId) {
+    CouchbaseCapella.projectId = projectId;
+  }
+
+  public static String getDatabaseName() {
+    return databaseName;
+  }
+
+  public static void setDatabaseName(String databaseName) {
+    CouchbaseCapella.databaseName = databaseName;
+  }
+
+  public static String getDatabaseId() {
+    return databaseId;
+  }
+
+  public static void setDatabaseId(String databaseId) {
+    CouchbaseCapella.databaseId = databaseId;
+  }
+
+  public static String getColumnarName() {
+    return columnarName;
+  }
+
+  public static void setColumnarName(String columnarName) {
+    CouchbaseCapella.columnarName = columnarName;
+  }
+
+  public static String getColumnarId() {
+    return columnarId;
+  }
+
+  public static void setColumnarId(String columnarId) {
+    CouchbaseCapella.columnarId = columnarId;
   }
 }

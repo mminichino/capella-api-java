@@ -1,10 +1,14 @@
 package com.codelry.util.capella;
 
 import com.codelry.util.capella.exceptions.CapellaAPIError;
+import com.codelry.util.capella.exceptions.NotFoundException;
+import com.codelry.util.capella.logic.OrganizationData;
 import com.codelry.util.capella.logic.ResourcesData;
 import com.codelry.util.capella.logic.UserData;
 import com.codelry.util.rest.REST;
 import com.codelry.util.rest.exceptions.HttpResponseException;
+import com.codelry.util.rest.exceptions.NotFoundError;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -38,11 +42,17 @@ public class CapellaUser {
   public void attach(CapellaOrganization organization) {
     CapellaUser.organization = organization;
     CapellaUser.rest = CouchbaseCapella.rest;
-    email = CapellaOrganization.capella.getAccountEmail();
     endpoint = CapellaOrganization.endpoint + "/" + CapellaOrganization.organization.id + "/users";
     try {
-      user = retryReturn(this::getByEmail);
-      LOGGER.debug("User ID: {}", user.id);
+      if (CouchbaseCapella.hasAccountEmail()) {
+        email = CouchbaseCapella.getAccountEmail();
+        user = retryReturn(this::getByEmail);
+      } else if (CouchbaseCapella.hasAccountId()) {
+        String accountId = CouchbaseCapella.getAccountId();
+        user = getById(accountId);
+        email = user.email;
+      }
+      LOGGER.debug("User ID: {} ({})", user.id, user.email);
     } catch (Exception e) {
       throw new RuntimeException(e);
     }
@@ -64,6 +74,18 @@ public class CapellaUser {
       return result;
     } catch (HttpResponseException e) {
       throw new CapellaAPIError(rest.responseCode, rest.responseBody, "User List Error", e);
+    }
+  }
+
+  public UserData getById(String id) throws CapellaAPIError, NotFoundException {
+    String userIdEndpoint = endpoint + "/" + id;
+    try {
+      JsonNode reply = rest.get(userIdEndpoint).validate().json();
+      return new UserData(reply);
+    } catch (NotFoundError e) {
+      throw new NotFoundException("User ID not found");
+    } catch (HttpResponseException e) {
+      throw new CapellaAPIError(rest.responseCode, rest.responseBody, "User Get Error", e);
     }
   }
 
