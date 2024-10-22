@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 public class UserData {
   public String id;
@@ -44,6 +45,19 @@ public class UserData {
       }
     }
     this.audit = new AuditData(data.get("audit"));
+  }
+
+  @Override
+  public boolean equals(Object o) {
+    if (this == o) return true;
+    if (o == null || getClass() != o.getClass()) return false;
+    UserData user = (UserData) o;
+    return this.id.equals(user.id);
+  }
+
+  @Override
+  public int hashCode() {
+    return Objects.hash(id);
   }
 
   public UserData() {}

@@ -2,8 +2,7 @@ package com.codelry.util.capella;
 
 import com.codelry.util.capella.exceptions.CapellaAPIError;
 import com.couchbase.client.core.deps.io.netty.handler.ssl.util.InsecureTrustManagerFactory;
-import com.couchbase.client.core.env.PasswordAuthenticator;
-import com.couchbase.client.core.env.SecurityConfig;
+import com.couchbase.client.core.env.*;
 import com.couchbase.client.core.error.CollectionExistsException;
 import com.couchbase.client.core.error.ScopeExistsException;
 import com.couchbase.client.java.Bucket;
@@ -63,7 +62,7 @@ public class CapellaProperty1Test {
 
   @Test
   public void testCapella2() {
-    cluster = CapellaCluster.getInstance(project, new CapellaCluster.ClusterConfig());
+    cluster = CapellaCluster.getInstance(project, new CapellaCluster.ClusterConfig().singleNode());
   }
 
   @Test
@@ -84,7 +83,7 @@ public class CapellaProperty1Test {
   public void testCapella5() throws CapellaAPIError {
     Assertions.assertNotNull(cluster);
     bucket = CapellaBucket.getInstance(cluster);
-    BucketSettings bucketSettings = BucketSettings.create(bucketName).ramQuotaMB(128);
+    BucketSettings bucketSettings = BucketSettings.create(bucketName).ramQuotaMB(128).numReplicas(0);
     bucket.createBucket(bucketSettings);
   }
 
@@ -98,6 +97,14 @@ public class CapellaProperty1Test {
         .enableTls(true)
         .enableHostnameVerification(false)
         .trustManagerFactory(InsecureTrustManagerFactory.INSTANCE);
+    Consumer<IoConfig.Builder> ioConfiguration = ioConfig -> ioConfig
+        .numKvConnections(4)
+        .networkResolution(NetworkResolution.AUTO)
+        .enableMutationTokens(false);
+    Consumer<TimeoutConfig.Builder> timeOutConfiguration = timeoutConfig -> timeoutConfig
+        .kvTimeout(Duration.ofSeconds(5))
+        .connectTimeout(Duration.ofSeconds(15))
+        .queryTimeout(Duration.ofSeconds(75));
     ClusterEnvironment environment = ClusterEnvironment
         .builder()
         .securityConfig(secConfiguration)
@@ -107,14 +114,18 @@ public class CapellaProperty1Test {
       Bucket bucket = cluster.bucket(bucketName);
       CollectionManager collectionManager = bucket.collections();
       try {
-        collectionManager.createScope(scopeName);
+        RetryLogic.retryVoid(() -> collectionManager.createScope(scopeName));
       } catch (ScopeExistsException e) {
         LOGGER.debug("Scope {} already exists in cluster", scopeName);
+      } catch (Exception e) {
+        throw new RuntimeException(e);
       }
       try {
-        collectionManager.createCollection(scopeName, collectionName);
+        RetryLogic.retryVoid(() -> collectionManager.createCollection(scopeName, collectionName));
       } catch (CollectionExistsException e) {
         LOGGER.debug("Collection {} already exists in cluster", collectionName);
+      } catch (Exception e) {
+        throw new RuntimeException(e);
       }
     }
   }

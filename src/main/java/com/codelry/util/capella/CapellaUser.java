@@ -2,7 +2,7 @@ package com.codelry.util.capella;
 
 import com.codelry.util.capella.exceptions.CapellaAPIError;
 import com.codelry.util.capella.exceptions.NotFoundException;
-import com.codelry.util.capella.logic.OrganizationData;
+import com.codelry.util.capella.exceptions.UserNotConfiguredException;
 import com.codelry.util.capella.logic.ResourcesData;
 import com.codelry.util.capella.logic.UserData;
 import com.codelry.util.rest.REST;
@@ -18,7 +18,9 @@ import org.apache.logging.log4j.Logger;
 import static com.codelry.util.capella.RetryLogic.retryReturn;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 public class CapellaUser {
   private static final Logger LOGGER = LogManager.getLogger(CapellaUser.class);
@@ -31,7 +33,7 @@ public class CapellaUser {
 
   private CapellaUser() {}
 
-  public static synchronized CapellaUser getInstance(CapellaOrganization organization) {
+  public static synchronized CapellaUser getInstance(CapellaOrganization organization) throws UserNotConfiguredException {
     if (instance == null) {
       instance = new CapellaUser();
       instance.attach(organization);
@@ -39,7 +41,7 @@ public class CapellaUser {
     return instance;
   }
 
-  public void attach(CapellaOrganization organization) {
+  public void attach(CapellaOrganization organization) throws UserNotConfiguredException {
     CapellaUser.organization = organization;
     CapellaUser.rest = CouchbaseCapella.rest;
     endpoint = CapellaOrganization.endpoint + "/" + CapellaOrganization.organization.id + "/users";
@@ -52,13 +54,16 @@ public class CapellaUser {
         user = getById(accountId);
         email = user.email;
       }
-      LOGGER.debug("User ID: {} ({})", user.id, user.email);
     } catch (Exception e) {
       throw new RuntimeException(e);
     }
+    if (user == null || email == null) {
+      throw new UserNotConfiguredException("Capella user not configured");
+    }
+    LOGGER.debug("User ID: {} ({})", user.id, user.email);
   }
 
-  public List<UserData> listUsers() throws CapellaAPIError {
+  public static List<UserData> listUsers() throws CapellaAPIError {
     List<UserData> result = new ArrayList<>();
     try {
       ArrayNode reply = rest.getPaged(endpoint,
@@ -75,6 +80,17 @@ public class CapellaUser {
     } catch (HttpResponseException e) {
       throw new CapellaAPIError(rest.responseCode, rest.responseBody, "User List Error", e);
     }
+  }
+
+  public static List<UserData> getUniqueUsers() throws CapellaAPIError {
+    List<UserData> result = listUsers();
+    long size = result.size();
+    Set<UserData> userSet = new HashSet<>(result);
+    while (userSet.size() < size) {
+      List<UserData> update = CapellaUser.listUsers();
+      userSet.addAll(update);
+    }
+    return new ArrayList<>(userSet);
   }
 
   public UserData getById(String id) throws CapellaAPIError, NotFoundException {

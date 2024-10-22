@@ -2,6 +2,7 @@ package com.codelry.util.capella;
 
 import com.codelry.util.capella.exceptions.CapellaAPIError;
 import com.codelry.util.capella.exceptions.NotFoundException;
+import com.codelry.util.capella.exceptions.UserNotConfiguredException;
 import com.codelry.util.capella.logic.ProjectData;
 import com.codelry.util.rest.REST;
 import com.codelry.util.rest.exceptions.HttpResponseException;
@@ -39,11 +40,13 @@ public class CapellaProject {
   public void attach(CapellaOrganization organization) {
     CapellaProject.organization = organization;
     CapellaProject.rest = CouchbaseCapella.rest;
-    CapellaProject.user = CapellaUser.getInstance(organization);
-    endpoint = CapellaOrganization.endpoint + "/" + CapellaOrganization.organization.id + "/projects";
     projectName = CouchbaseCapella.projectName;
+    endpoint = CapellaOrganization.endpoint + "/" + CapellaOrganization.organization.id + "/projects";
     try {
+      CapellaProject.user = CapellaUser.getInstance(organization);
       getProject();
+    } catch (UserNotConfiguredException e) {
+      throw new RuntimeException("Capella user not configured. Please set capella.user.email or capella.user.id.");
     } catch (CapellaAPIError | NotFoundException e) {
       throw new RuntimeException(e);
     }
@@ -124,6 +127,19 @@ public class CapellaProject {
       }
       project = createProject();
     }
+  }
+
+  public void getProjectByName(String name) throws CapellaAPIError, NotFoundException {
+    List<ProjectData> projects = listProjects();
+    if (!projects.isEmpty()) {
+      for (ProjectData pd : projects) {
+        if (projectName.equals(name)) {
+          project = pd;
+          return;
+        }
+      }
+    }
+    throw new NotFoundException("Project not found: " + name);
   }
 
   public List<ProjectData> getByEmail() throws CapellaAPIError, NotFoundException {

@@ -26,7 +26,7 @@ import java.util.function.Consumer;
 
 public class CapellaProperty3Test {
   private static final Logger LOGGER = LogManager.getLogger(CapellaProperty3Test.class);
-  private static final String propertyFile = "test.1.properties";
+  private static final String propertyFile = "test.3.properties";
   public static Properties properties;
   public String bucketName = "data";
   public String scopeName = "group";
@@ -81,15 +81,7 @@ public class CapellaProperty3Test {
   }
 
   @Test
-  public void testCapella5() throws CapellaAPIError {
-    Assertions.assertNotNull(cluster);
-    bucket = CapellaBucket.getInstance(cluster);
-    BucketSettings bucketSettings = BucketSettings.create(bucketName).ramQuotaMB(128).numReplicas(0);
-    bucket.createBucket(bucketSettings);
-  }
-
-  @Test
-  public void testCapella6() {
+  public void testCapella5() {
     Assertions.assertNotNull(cluster);
     String connectString = cluster.getConnectString();
     PasswordAuthenticator authenticator = PasswordAuthenticator.create(username, password);
@@ -104,29 +96,11 @@ public class CapellaProperty3Test {
         .build();
     try (Cluster cluster = Cluster.connect(connectString, ClusterOptions.clusterOptions(authenticator).environment(environment))) {
       cluster.waitUntilReady(Duration.ofSeconds(15));
-      Bucket bucket = cluster.bucket(bucketName);
-      CollectionManager collectionManager = bucket.collections();
-      try {
-        collectionManager.createScope(scopeName);
-      } catch (ScopeExistsException e) {
-        LOGGER.debug("Scope {} already exists in cluster", scopeName);
-      }
-      try {
-        collectionManager.createCollection(scopeName, collectionName);
-      } catch (CollectionExistsException e) {
-        LOGGER.debug("Collection {} already exists in cluster", collectionName);
-      }
     }
   }
 
   @Test
-  public void testCapella7() throws CapellaAPIError {
-    Assertions.assertNotNull(bucket);
-    bucket.delete();
-  }
-
-  @Test
-  public void testCapella8() throws CapellaAPIError {
+  public void testCapella6() throws CapellaAPIError {
     Assertions.assertNotNull(cluster);
     cluster.delete();
   }
