@@ -7,7 +7,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 public abstract class StorageConfig {
   public CloudType cloudType = CloudType.AWS;
   public String type;
-  public int storage = 256;
+  public int storage = 0;
   public int iops = 0;
   public boolean autoExpansion = true;
 
@@ -61,7 +61,9 @@ public abstract class StorageConfig {
     ObjectMapper mapper = new ObjectMapper();
     ObjectNode node = mapper.createObjectNode();
     node.put("type", type);
-    node.put("storage", storage);
+    if (storage > 0) {
+      node.put("storage", storage);
+    }
     if (iops > 0) {
       node.put("iops", iops);
     }

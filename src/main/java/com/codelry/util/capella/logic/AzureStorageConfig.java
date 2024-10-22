@@ -1,6 +1,6 @@
 package com.codelry.util.capella.logic;
 
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Optional;
 
@@ -8,7 +8,7 @@ public class AzureStorageConfig extends StorageConfig {
   private boolean isUltra = false;
   private static final Map<Integer, String> azureStorageMatrix;
   static {
-    azureStorageMatrix = new HashMap<>();
+    azureStorageMatrix = new LinkedHashMap<>();
     azureStorageMatrix.put(64, "P6");
     azureStorageMatrix.put(128, "P10");
     azureStorageMatrix.put(256, "P15");
@@ -20,7 +20,7 @@ public class AzureStorageConfig extends StorageConfig {
   }
   private static final Map<Integer, Integer> azureUltraMatrix;
   static {
-    azureUltraMatrix = new HashMap<>();
+    azureUltraMatrix = new LinkedHashMap<>();
     azureUltraMatrix.put(64, 3000);
     azureUltraMatrix.put(128, 4000);
     azureUltraMatrix.put(256, 6000);
@@ -77,7 +77,6 @@ public class AzureStorageConfig extends StorageConfig {
     if (result.isPresent()) {
       Map.Entry<Integer, String> entry = result.get();
       this.type = entry.getValue();
-      this.storage = entry.getKey();
     } else {
       throw new IllegalArgumentException("Invalid storage value: " + storage);
     }

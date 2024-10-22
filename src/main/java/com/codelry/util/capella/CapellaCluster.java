@@ -151,7 +151,7 @@ public class CapellaCluster {
   public static class ClusterConfig {
     private String description = "Automation Managed Cluster";
     private CloudType cloudType = CloudType.AWS;
-    private String cloudRegion = "us-east-1";
+    private String cloudRegion = "";
     private String cidr;
     private String version;
     private AvailabilityType availabilityType = AvailabilityType.MULTI_ZONE;
@@ -209,9 +209,34 @@ public class CapellaCluster {
       return this;
     }
 
+    public ClusterConfig singleNode() {
+      this.availabilityType = AvailabilityType.SINGLE_ZONE;
+      addServiceGroup(new ServiceGroupConfig().numOfNodes(1).storage(100));
+      return this;
+    }
+
+    public ClusterConfig singleNode(List<String> services) {
+      this.availabilityType = AvailabilityType.SINGLE_ZONE;
+      addServiceGroup(new ServiceGroupConfig().numOfNodes(1).storage(100).services(services));
+      return this;
+    }
+
     public JsonNode create(String clusterName) {
       if (serviceGroups.isEmpty()) {
         addServiceGroup(new ServiceGroupConfig());
+      }
+      if (cloudRegion.isEmpty()) {
+        switch (cloudType) {
+          case GCP:
+            cloudRegion = "us-central1";
+            break;
+          case AZURE:
+            cloudRegion = "eastus";
+            break;
+          default:
+            cloudRegion = "us-east-1";
+            break;
+        }
       }
       ObjectMapper mapper = new ObjectMapper();
       ObjectNode node = mapper.createObjectNode();
@@ -254,7 +279,7 @@ public class CapellaCluster {
 
   public boolean wait(String clusterId, State state, StateWaitOperation operation) throws CapellaAPIError {
     String clusterIdEndpoint = endpoint + "/" + clusterId;
-    for (int retry = 0; retry < 36; retry++) {
+    for (int retry = 0; retry < 90; retry++) {
       try {
         JsonNode reply = rest.get(clusterIdEndpoint).validate().json();
         boolean check = operation.evaluate(reply.get("currentState").asText().equals(state.toString()));
