@@ -65,11 +65,11 @@ public class CapellaBucket {
     ObjectNode parameters = new ObjectMapper().createObjectNode();
     CoreBucketSettings settings = bucketSettings.toCore();
     parameters.put("name", bucketSettings.name());
-    parameters.put("type", bucketSettings.bucketType() != null ? bucketSettings.bucketType().name().toLowerCase() : "couchbase");
-    parameters.put("storageBackend", bucketSettings.storageBackend() != null ? bucketSettings.storageBackend().toString().toLowerCase() : "couchstore");
+    parameters.put("type", bucketSettings.bucketType() != null ? bucketSettings.bucketType().alias() : "couchbase");
+    parameters.put("storageBackend", bucketSettings.storageBackend() != null ? bucketSettings.storageBackend().alias() : "couchstore");
     Optional<Long> quota = Optional.ofNullable(settings.ramQuotaMB());
     parameters.put("memoryAllocationInMb", quota.isPresent() ? bucketSettings.ramQuotaMB() : 128);
-    parameters.put("bucketConflictResolution", bucketSettings.conflictResolutionType() != null ? bucketSettings.conflictResolutionType().name().toLowerCase() : "seqno");
+    parameters.put("bucketConflictResolution", bucketSettings.conflictResolutionType() != null ? bucketSettings.conflictResolutionType().alias() : "seqno");
     parameters.put("durabilityLevel", bucketSettings.minimumDurabilityLevel() != null ? bucketSettings.minimumDurabilityLevel().name().toLowerCase() : "none");
     Optional<Integer> replicas = Optional.ofNullable(settings.numReplicas());
     parameters.put("replicas", replicas.isPresent() ? bucketSettings.numReplicas() : 1);
