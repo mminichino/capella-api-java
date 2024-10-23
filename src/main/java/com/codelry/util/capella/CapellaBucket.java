@@ -38,10 +38,26 @@ public class CapellaBucket {
     return instance;
   }
 
+  public static CapellaBucket getInstance(CapellaCluster cluster, String bucketName) throws NotFoundException, CapellaAPIError {
+    if (instance == null) {
+      instance = new CapellaBucket();
+      instance.attach(cluster, bucketName);
+    }
+    return instance;
+  }
+
   public void attach(CapellaCluster cluster) {
     CapellaBucket.cluster = cluster;
     CapellaBucket.rest = CouchbaseCapella.rest;
     endpoint = CapellaCluster.endpoint + "/" + CapellaCluster.cluster.id + "/buckets";
+  }
+
+  public void attach(CapellaCluster cluster, String bucketName) throws NotFoundException, CapellaAPIError {
+    CapellaBucket.cluster = cluster;
+    CapellaBucket.rest = CouchbaseCapella.rest;
+    endpoint = CapellaCluster.endpoint + "/" + CapellaCluster.cluster.id + "/buckets";
+    CapellaBucket.bucketName = bucketName;
+    getBucket(bucketName);
   }
 
   public BucketData isBucket(String name) throws CapellaAPIError {
