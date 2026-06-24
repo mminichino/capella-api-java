@@ -1,7 +1,7 @@
 package com.codelry.util.capella.logic;
 
-public class CloudProviderData {
-  public String type;
-  public String region;
-  public String cidr;
-}
+public record CloudProviderData(
+    String type,
+    String region,
+    String cidr
+) {}

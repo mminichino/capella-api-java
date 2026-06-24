@@ -73,8 +73,8 @@ public class CouchbaseCapella {
   public static CouchbaseCapella getInstance(Properties properties) {
     if (instance == null) {
       instance = new CouchbaseCapella();
-      instance.init(properties);
     }
+    instance.init(properties);
     return instance;
   }
 

@@ -9,24 +9,22 @@ import com.codelry.util.rest.REST;
 import com.codelry.util.rest.exceptions.HttpResponseException;
 import com.codelry.util.rest.exceptions.NotFoundError;
 import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-
-import static com.codelry.util.capella.RetryLogic.retryReturn;
 
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
+import static com.codelry.util.capella.RetryLogic.retryReturn;
+
 public class CapellaUser {
   private static final Logger LOGGER = LogManager.getLogger(CapellaUser.class);
   private static CapellaUser instance;
   private static REST rest;
-  private static CapellaOrganization organization;
   public static String email;
   public static String endpoint;
   public static UserData user;
@@ -42,9 +40,8 @@ public class CapellaUser {
   }
 
   public void attach(CapellaOrganization organization) throws UserNotConfiguredException {
-    CapellaUser.organization = organization;
     CapellaUser.rest = CouchbaseCapella.rest;
-    endpoint = CapellaOrganization.endpoint + "/" + CapellaOrganization.organization.id + "/users";
+    endpoint = CapellaOrganization.endpoint + "/" + CapellaOrganization.organization.id() + "/users";
     try {
       if (CouchbaseCapella.hasAccountEmail()) {
         email = CouchbaseCapella.getAccountEmail();
@@ -52,7 +49,7 @@ public class CapellaUser {
       } else if (CouchbaseCapella.hasAccountId()) {
         String accountId = CouchbaseCapella.getAccountId();
         user = getById(accountId);
-        email = user.email;
+        email = user.email();
       }
     } catch (Exception e) {
       throw new RuntimeException(e);
@@ -60,7 +57,7 @@ public class CapellaUser {
     if (user == null || email == null) {
       throw new UserNotConfiguredException("Capella user not configured");
     }
-    LOGGER.debug("User ID: {} ({})", user.id, user.email);
+    LOGGER.debug("User ID: {} ({})", user.id(), user.email());
   }
 
   public static List<UserData> listUsers() throws CapellaAPIError {
@@ -75,7 +72,7 @@ public class CapellaUser {
           "data",
           "cursor",
           "pages").validate().jsonList();
-      reply.forEach(o -> result.add(new UserData(o)));
+      reply.forEach(o -> result.add(CapellaJson.fromJson(o, UserData.class)));
       return result;
     } catch (HttpResponseException e) {
       throw new CapellaAPIError(rest.responseCode, rest.responseBody, "User List Error", e);
@@ -97,7 +94,7 @@ public class CapellaUser {
     String userIdEndpoint = endpoint + "/" + id;
     try {
       JsonNode reply = rest.get(userIdEndpoint).validate().json();
-      return new UserData(reply);
+      return CapellaJson.fromJson(reply, UserData.class);
     } catch (NotFoundError e) {
       throw new NotFoundException("User ID not found");
     } catch (HttpResponseException e) {
@@ -107,7 +104,7 @@ public class CapellaUser {
 
   public UserData getByEmail(String email) throws CapellaAPIError {
     for (UserData user : listUsers()) {
-      if (user.email.equals(email)) {
+      if (user.email().equals(email)) {
         return user;
       }
     }
@@ -116,7 +113,7 @@ public class CapellaUser {
 
   public UserData getByEmail() throws CapellaAPIError {
     for (UserData user : listUsers()) {
-      if (user.email.equals(email)) {
+      if (user.email().equals(email)) {
         return user;
       }
     }
@@ -125,28 +122,30 @@ public class CapellaUser {
 
   public List<String> getProjects() {
     List<String> result = new ArrayList<>();
-    for (ResourcesData resource : user.resources) {
-      if (resource.type.equals("project")) {
-        result.add(resource.id);
+    if (user.resources() == null) {
+      return result;
+    }
+    for (ResourcesData resource : user.resources()) {
+      if ("project".equals(resource.type())) {
+        result.add(resource.id());
       }
     }
     return result;
   }
 
   public void setProjectOwnership(String projectId) throws CapellaAPIError {
-    String userIdEndpoint = endpoint + "/" + user.id;
-    ObjectMapper mapper = new ObjectMapper();
-    ObjectNode parameters = mapper.createObjectNode();
+    String userIdEndpoint = endpoint + "/" + user.id();
+    ObjectNode parameters = CapellaJson.mapper().createObjectNode();
     parameters.put("op", "add");
     parameters.put("path", "/resources/" + projectId);
-    ObjectNode value = mapper.createObjectNode();
+    ObjectNode value = CapellaJson.mapper().createObjectNode();
     value.put("type", "project");
     value.put("id", projectId);
-    ArrayNode array = mapper.createArrayNode();
-    array.add("projectOwner");
-    value.set("roles", array);
+    ArrayNode roles = CapellaJson.mapper().createArrayNode();
+    roles.add("projectOwner");
+    value.set("roles", roles);
     parameters.set("value", value);
-    ArrayNode payload = mapper.createArrayNode();
+    ArrayNode payload = CapellaJson.mapper().createArrayNode();
     payload.add(parameters);
     try {
       rest.patch(userIdEndpoint, payload).validate().json();

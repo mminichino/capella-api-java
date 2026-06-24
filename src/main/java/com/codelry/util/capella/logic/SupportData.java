@@ -1,6 +1,8 @@
 package com.codelry.util.capella.logic;
 
-public class SupportData {
-  public String plan;
-  public String timezone;
-}
+import com.fasterxml.jackson.annotation.JsonProperty;
+
+public record SupportData(
+    String plan,
+    @JsonProperty("timezone") String timezone
+) {}

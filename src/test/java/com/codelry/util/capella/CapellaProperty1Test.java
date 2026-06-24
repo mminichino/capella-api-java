@@ -3,15 +3,13 @@ package com.codelry.util.capella;
 import com.codelry.util.capella.exceptions.CapellaAPIError;
 import com.couchbase.client.core.deps.io.netty.handler.ssl.util.InsecureTrustManagerFactory;
 import com.couchbase.client.core.env.*;
-import com.couchbase.client.core.error.CollectionExistsException;
-import com.couchbase.client.core.error.ScopeExistsException;
+import com.couchbase.client.core.error.UnambiguousTimeoutException;
 import com.couchbase.client.java.Bucket;
 import com.couchbase.client.java.Cluster;
 import com.couchbase.client.java.ClusterOptions;
 import com.couchbase.client.java.env.ClusterEnvironment;
+import com.couchbase.client.java.json.JsonObject;
 import com.couchbase.client.java.manager.bucket.BucketSettings;
-import com.couchbase.client.java.manager.collection.CollectionManager;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.junit.jupiter.api.Assertions;
@@ -36,6 +34,8 @@ public class CapellaProperty1Test {
   public static CapellaProject project;
   public static CapellaCluster cluster;
   public static CapellaBucket bucket;
+  public static CapellaScope scope;
+  public static CapellaCollection collection;
   public static CapellaAllowedCIDR cidr;
   public static CapellaCredentials user;
 
@@ -76,7 +76,7 @@ public class CapellaProperty1Test {
   public void testCapella4() throws CapellaAPIError {
     Assertions.assertNotNull(cluster);
     user = CapellaCredentials.getInstance(cluster);
-    user.createCredential(username, password, new ObjectMapper().createArrayNode());
+    user.createCredential(username, password, null);
   }
 
   @Test
@@ -85,6 +85,10 @@ public class CapellaProperty1Test {
     bucket = CapellaBucket.getInstance(cluster);
     BucketSettings bucketSettings = BucketSettings.create(bucketName).ramQuotaMB(128).numReplicas(0);
     bucket.createBucket(bucketSettings);
+    scope = CapellaScope.getInstance(bucket);
+    scope.createScope(scopeName);
+    collection = CapellaCollection.getInstance(scope);
+    collection.createCollection(collectionName);
   }
 
   @Test
@@ -110,23 +114,17 @@ public class CapellaProperty1Test {
         .securityConfig(secConfiguration)
         .build();
     try (Cluster cluster = Cluster.connect(connectString, ClusterOptions.clusterOptions(authenticator).environment(environment))) {
-      cluster.waitUntilReady(Duration.ofSeconds(15));
       Bucket bucket = cluster.bucket(bucketName);
-      CollectionManager collectionManager = bucket.collections();
-      try {
-        RetryLogic.retryVoid(() -> collectionManager.createScope(scopeName));
-      } catch (ScopeExistsException e) {
-        LOGGER.debug("Scope {} already exists in cluster", scopeName);
-      } catch (Exception e) {
-        throw new RuntimeException(e);
+      for (int i = 0; i < 3; i++) {
+        try {
+          bucket.waitUntilReady(Duration.ofSeconds(5));
+          break;
+        } catch (UnambiguousTimeoutException ignored) {}
       }
-      try {
-        RetryLogic.retryVoid(() -> collectionManager.createCollection(scopeName, collectionName));
-      } catch (CollectionExistsException e) {
-        LOGGER.debug("Collection {} already exists in cluster", collectionName);
-      } catch (Exception e) {
-        throw new RuntimeException(e);
-      }
+      bucket.scope(scopeName).collection(collectionName).upsert("test", JsonObject.create().put("id", "test"));
+    } catch (Exception e) {
+      LOGGER.error("Error connecting to cluster", e);
+      Assertions.fail();
     }
   }
 

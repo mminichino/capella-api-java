@@ -27,8 +27,8 @@ public class CapellaOrganization {
   public static CapellaOrganization getInstance(CouchbaseCapella capella) {
     if (instance == null) {
       instance = new CapellaOrganization();
-      instance.attach(capella);
     }
+    instance.attach(capella);
     return instance;
   }
 
@@ -36,14 +36,14 @@ public class CapellaOrganization {
     CapellaOrganization.capella = capella;
     CapellaOrganization.rest = CouchbaseCapella.rest;
     organization = getDefaultOrg();
-    LOGGER.debug("Organization ID: {}", organization.id);
+    LOGGER.debug("Organization ID: {}", organization.id());
   }
 
   public List<OrganizationData> list() throws CapellaAPIError {
     List<OrganizationData> result = new ArrayList<>();
     try {
       ArrayNode reply = rest.get(endpoint).validate().json().get("data").deepCopy();
-      reply.forEach(o -> result.add(new OrganizationData(o)));
+      reply.forEach(o -> result.add(CapellaJson.fromJson(o, OrganizationData.class)));
       return result;
     } catch (HttpResponseException e) {
       throw new CapellaAPIError(rest.responseCode, rest.responseBody, "Organization List Error", e);
@@ -54,7 +54,7 @@ public class CapellaOrganization {
     String orgIdEndpoint = endpoint + "/" + id;
     try {
       JsonNode reply = rest.get(orgIdEndpoint).validate().json();
-      return new OrganizationData(reply);
+      return CapellaJson.fromJson(reply, OrganizationData.class);
     } catch (NotFoundError e) {
       throw new NotFoundException("Organization ID not found");
     } catch (HttpResponseException e) {
@@ -62,14 +62,13 @@ public class CapellaOrganization {
     }
   }
 
-  public OrganizationData getByName(String clusterName) throws NotFoundException, CapellaAPIError {
-    List<OrganizationData> organizations = list();
-    for (OrganizationData organization : organizations) {
-      if (clusterName.equals(organization.name)) {
+  public OrganizationData getByName(String organizationName) throws NotFoundException, CapellaAPIError {
+    for (OrganizationData organization : list()) {
+      if (organizationName.equals(organization.name())) {
         return organization;
       }
     }
-    throw new NotFoundException("Can not find cluster " + clusterName);
+    throw new NotFoundException("Can not find organization " + organizationName);
   }
 
   public OrganizationData getDefaultOrg() {

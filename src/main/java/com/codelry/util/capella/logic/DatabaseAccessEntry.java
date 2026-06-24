@@ -1,0 +1,8 @@
+package com.codelry.util.capella.logic;
+
+import java.util.List;
+
+public record DatabaseAccessEntry(
+    List<String> privileges,
+    DatabaseResourceData resources
+) {}

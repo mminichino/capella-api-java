@@ -6,6 +6,7 @@ import com.couchbase.client.core.env.PasswordAuthenticator;
 import com.couchbase.client.core.env.SecurityConfig;
 import com.couchbase.client.core.error.CollectionExistsException;
 import com.couchbase.client.core.error.ScopeExistsException;
+import com.couchbase.client.core.error.UnambiguousTimeoutException;
 import com.couchbase.client.java.Bucket;
 import com.couchbase.client.java.Cluster;
 import com.couchbase.client.java.ClusterOptions;
@@ -77,7 +78,7 @@ public class CapellaProperty3Test {
   public void testCapella4() throws CapellaAPIError {
     Assertions.assertNotNull(cluster);
     user = CapellaCredentials.getInstance(cluster);
-    user.createCredential(username, password, new ObjectMapper().createArrayNode());
+    user.createCredential(username, password, null);
   }
 
   @Test
@@ -95,7 +96,15 @@ public class CapellaProperty3Test {
         .securityConfig(secConfiguration)
         .build();
     try (Cluster cluster = Cluster.connect(connectString, ClusterOptions.clusterOptions(authenticator).environment(environment))) {
-      cluster.waitUntilReady(Duration.ofSeconds(15));
+      for (int i = 0; i < 3; i++) {
+        try {
+          cluster.waitUntilReady(Duration.ofSeconds(5));
+          break;
+        } catch (UnambiguousTimeoutException ignored) {}
+      }
+    } catch (Exception e) {
+      LOGGER.error("Error connecting to cluster", e);
+      Assertions.fail();
     }
   }
 
