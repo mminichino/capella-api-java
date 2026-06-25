@@ -17,26 +17,30 @@ import java.util.List;
 
 public class CapellaAppService {
   private static final Logger LOGGER = LogManager.getLogger(CapellaAppService.class);
-  private static CapellaAppService instance;
-  private static REST rest;
-  public static String endpoint;
-  public static String organizationEndpoint;
-  public static AppServiceData appService;
 
-  private CapellaAppService() {}
+  private final CapellaCluster cluster;
+  private final REST rest;
+  private final String endpoint;
+  private final String organizationEndpoint;
+  private AppServiceData appService;
 
   public static CapellaAppService getInstance(CapellaCluster cluster) {
-    if (instance == null) {
-      instance = new CapellaAppService();
-      instance.attach(cluster);
-    }
-    return instance;
+    return cluster.getAppService();
   }
 
-  public void attach(CapellaCluster cluster) {
-    CapellaAppService.rest = CouchbaseCapella.rest;
-    endpoint = CapellaCluster.endpoint + "/" + CapellaCluster.cluster.id() + "/appservices";
-    organizationEndpoint = CapellaOrganization.endpoint + "/" + CapellaOrganization.organization.id() + "/appservices";
+  CapellaAppService(CapellaCluster cluster) {
+    this.cluster = cluster;
+    this.rest = CouchbaseCapella.rest;
+    this.endpoint = cluster.getEndpoint() + "/" + cluster.getClusterData().id() + "/appservices";
+    this.organizationEndpoint = CapellaOrganization.ENDPOINT + "/" + cluster.getProject().getOrganization().getOrganization().id() + "/appservices";
+  }
+
+  public AppServiceData getAppServiceData() {
+    return appService;
+  }
+
+  public String getEndpoint() {
+    return endpoint;
   }
 
   public AppServiceData create(CreateAppServiceRequest request) throws CapellaAPIError {
@@ -72,6 +76,9 @@ public class CapellaAppService {
   }
 
   public AppServiceData getById(String appServiceId) throws NotFoundException, CapellaAPIError {
+    if (appService != null && appService.id().equals(appServiceId)) {
+      return appService;
+    }
     try {
       JsonNode reply = rest.get(endpoint + "/" + appServiceId).validate().json();
       appService = CapellaJson.fromJson(reply, AppServiceData.class);
@@ -84,7 +91,10 @@ public class CapellaAppService {
   }
 
   public AppServiceData getByName(String name) throws NotFoundException, CapellaAPIError {
-    for (AppServiceData service : listByOrganization(CapellaProject.project.id())) {
+    if (appService != null && name.equals(appService.name())) {
+      return appService;
+    }
+    for (AppServiceData service : listByOrganization(cluster.getProject().getId())) {
       if (name.equals(service.name())) {
         appService = service;
         return service;

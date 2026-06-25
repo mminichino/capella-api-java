@@ -18,71 +18,54 @@ import java.util.List;
 
 public class CapellaCluster {
   private static final Logger LOGGER = LogManager.getLogger(CapellaCluster.class);
-  private static CapellaCluster instance;
-  private static REST rest;
-  private static CapellaProject project;
-  private static String clusterName;
-  public static String endpoint;
-  public static ClusterData cluster;
 
-  private CapellaCluster() {}
+  private final CapellaProject project;
+  private final REST rest;
+  private final String endpoint;
+  private ClusterData cluster;
+  private CapellaBucket bucket;
+  private CapellaCredentials credentials;
+  private CapellaAllowedCIDR allowedCIDR;
+  private CapellaCertificate certificate;
+  private CapellaAppService appService;
 
   public static CapellaCluster getInstance(CapellaProject project) {
-    if (instance == null) {
-      instance = new CapellaCluster();
-    }
-    instance.attach(project);
-    return instance;
+    return project.getDefaultCluster();
   }
 
   public static CapellaCluster getInstance(CapellaProject project, ClusterConfig clusterConfig) {
-    if (instance == null) {
-      instance = new CapellaCluster();
-    }
-    instance.attach(project, clusterConfig);
-    return instance;
+    return project.createCluster(clusterConfig);
   }
 
   public static CapellaCluster getInstance(CapellaProject project, String clusterName, ClusterConfig clusterConfig) {
-    if (instance == null) {
-      instance = new CapellaCluster();
-    }
-    instance.attach(project, clusterName, clusterConfig);
-    return instance;
+    return project.createCluster(clusterName, clusterConfig);
   }
 
-  public void attach(CapellaProject project) {
-    CapellaCluster.project = project;
-    CapellaCluster.rest = CouchbaseCapella.rest;
-    endpoint = CapellaProject.endpoint + "/" + CapellaProject.project.id() + "/clusters";
-    try {
-      getCluster();
-    } catch (NotFoundException | CapellaAPIError e) {
-      throw new RuntimeException("Can not find cluster " + (CouchbaseCapella.hasDatabaseId() ? CouchbaseCapella.getDatabaseId() : CouchbaseCapella.getDatabaseName()), e);
-    }
+  CapellaCluster(CapellaProject project) {
+    this.project = project;
+    this.rest = CouchbaseCapella.rest;
+    this.endpoint = project.getEndpoint() + "/" + project.getId() + "/clusters";
   }
 
-  public void attach(CapellaProject project, ClusterConfig clusterConfig) {
-    CapellaCluster.project = project;
-    CapellaCluster.rest = CouchbaseCapella.rest;
-    endpoint = CapellaProject.endpoint + "/" + CapellaProject.project.id() + "/clusters";
-    clusterName = CouchbaseCapella.hasDatabaseName() ? CouchbaseCapella.getDatabaseName() : NameGenerator.getRandomName();
-    try {
-      createCluster(clusterName, clusterConfig);
-    } catch (CapellaAPIError e) {
-      throw new RuntimeException("Can not create cluster " + clusterName, e);
-    }
+  public CapellaProject getProject() {
+    return project;
   }
 
-  public void attach(CapellaProject project, String clusterName, ClusterConfig clusterConfig) {
-    CapellaCluster.project = project;
-    CapellaCluster.rest = CouchbaseCapella.rest;
-    endpoint = CapellaProject.endpoint + "/" + CapellaProject.project.id() + "/clusters";
-    try {
-      createCluster(clusterName, clusterConfig);
-    } catch (CapellaAPIError e) {
-      throw new RuntimeException("Can not create cluster " + clusterName, e);
+  public String getEndpoint() {
+    return endpoint;
+  }
+
+  public ClusterData getClusterData() {
+    return cluster;
+  }
+
+  void resolveCluster() throws NotFoundException, CapellaAPIError {
+    if (CouchbaseCapella.hasDatabaseId()) {
+      cluster = getById(CouchbaseCapella.getDatabaseId());
+    } else if (CouchbaseCapella.hasDatabaseName()) {
+      cluster = getByName(CouchbaseCapella.getDatabaseName());
     }
+    attachClusterServices();
   }
 
   public static class ServiceGroupConfig {
@@ -256,9 +239,9 @@ public class CapellaCluster {
 
   public ClusterData isCluster(String name) throws CapellaAPIError {
     List<ClusterData> clusters = list();
-    for (ClusterData cluster : clusters) {
-      if (name.equals(cluster.name())) {
-        return cluster;
+    for (ClusterData listedCluster : clusters) {
+      if (name.equals(listedCluster.name())) {
+        return listedCluster;
       }
     }
     return null;
@@ -277,6 +260,9 @@ public class CapellaCluster {
       } catch (NotFoundException e) {
         throw new RuntimeException("Cluster lookup failed", e);
       }
+      attachClusterServices();
+      populateCertificate();
+      project.registerCluster(this);
       return;
     }
     CreateClusterRequest parameters = clusterConfig.create(clusterName);
@@ -293,9 +279,48 @@ public class CapellaCluster {
       } catch (NotFoundException e) {
         throw new RuntimeException("Cluster creation failed");
       }
+      attachClusterServices();
+      populateCertificate();
+      project.registerCluster(this);
     } catch (HttpResponseException e) {
       throw new CapellaAPIError(rest.responseCode, rest.responseBody, CapellaJson.toJson(parameters), "Cluster Create Error", e);
     }
+  }
+
+  private void attachClusterServices() {
+    bucket = new CapellaBucket(this);
+    credentials = new CapellaCredentials(this);
+    allowedCIDR = new CapellaAllowedCIDR(this);
+    certificate = new CapellaCertificate(this);
+    appService = new CapellaAppService(this);
+  }
+
+  private void populateCertificate() {
+    try {
+      certificate.setCertificate(certificate.getClusterCertificate());
+    } catch (CapellaAPIError e) {
+      LOGGER.debug("Unable to fetch cluster certificate: {}", e.getMessage());
+    }
+  }
+
+  public CapellaBucket getBucket() {
+    return bucket;
+  }
+
+  public CapellaCredentials getCredentials() {
+    return credentials;
+  }
+
+  public CapellaAllowedCIDR getAllowedCIDR() {
+    return allowedCIDR;
+  }
+
+  public CapellaCertificate getCertificate() {
+    return certificate;
+  }
+
+  public CapellaAppService getAppService() {
+    return appService;
   }
 
   public void delete() throws CapellaAPIError {
@@ -338,16 +363,29 @@ public class CapellaCluster {
   }
 
   public ClusterData getByName(String clusterName) throws NotFoundException, CapellaAPIError {
-    List<ClusterData> clusters = list();
-    for (ClusterData cluster : clusters) {
-      if (clusterName.equals(cluster.name())) {
-        return cluster;
+    if (cluster != null && clusterName.equals(cluster.name())) {
+      return cluster;
+    }
+    CapellaCluster cached = project.findClusterByName(clusterName);
+    if (cached != null && cached.cluster != null && clusterName.equals(cached.cluster.name())) {
+      return cached.cluster;
+    }
+    for (ClusterData listedCluster : list()) {
+      if (clusterName.equals(listedCluster.name())) {
+        return listedCluster;
       }
     }
     throw new NotFoundException("Can not find cluster " + clusterName);
   }
 
   public ClusterData getById(String id) throws NotFoundException, CapellaAPIError {
+    if (cluster != null && cluster.id().equals(id)) {
+      return cluster;
+    }
+    CapellaCluster cached = project.findClusterById(id);
+    if (cached != null && cached.cluster != null && cached.cluster.id().equals(id)) {
+      return cached.cluster;
+    }
     String clusterIdEndpoint = endpoint + "/" + id;
     try {
       JsonNode reply = rest.get(clusterIdEndpoint).validate().json();
@@ -361,6 +399,7 @@ public class CapellaCluster {
 
   public void getCluster(String clusterName) throws NotFoundException, CapellaAPIError {
     cluster = getByName(clusterName);
+    project.registerCluster(this);
   }
 
   public void getCluster() throws NotFoundException, CapellaAPIError {
@@ -369,6 +408,7 @@ public class CapellaCluster {
     } else if (CouchbaseCapella.hasDatabaseName()) {
       cluster = getByName(CouchbaseCapella.getDatabaseName());
     }
+    project.registerCluster(this);
   }
 
   public String getConnectString() {

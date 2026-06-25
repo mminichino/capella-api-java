@@ -16,33 +16,34 @@ import java.util.List;
 
 public class CapellaAppEndpoint {
   private static final Logger LOGGER = LogManager.getLogger(CapellaAppEndpoint.class);
-  private static CapellaAppEndpoint instance;
-  private static REST rest;
-  public static String endpoint;
-  public static AppEndpointData appEndpoint;
 
-  private CapellaAppEndpoint() {}
+  private final CapellaAppService appService;
+  private final REST rest;
+  private String endpoint;
+  private AppEndpointData appEndpoint;
 
   public static CapellaAppEndpoint getInstance(CapellaAppService appService) {
-    if (instance == null) {
-      instance = new CapellaAppEndpoint();
-      instance.attach(appService);
-    }
-    return instance;
+    return new CapellaAppEndpoint(appService);
   }
 
-  public void attach(CapellaAppService appService) {
-    CapellaAppEndpoint.rest = CouchbaseCapella.rest;
-    if (appService.appService == null) {
+  public static CapellaAppEndpoint getInstance(CapellaAppService appService, String appServiceId) throws NotFoundException, CapellaAPIError {
+    return new CapellaAppEndpoint(appService, appServiceId);
+  }
+
+  public CapellaAppEndpoint(CapellaAppService appService) {
+    this.appService = appService;
+    this.rest = CouchbaseCapella.rest;
+    if (appService.getAppServiceData() == null) {
       throw new IllegalStateException("App Service must be loaded before attaching App Endpoints");
     }
-    endpoint = appService.endpoint + "/" + appService.appService.id() + "/appEndpoints";
+    this.endpoint = appService.getEndpoint() + "/" + appService.getAppServiceData().id() + "/appEndpoints";
   }
 
-  public void attach(CapellaAppService appService, String appServiceId) throws NotFoundException, CapellaAPIError {
-    CapellaAppEndpoint.rest = CouchbaseCapella.rest;
+  public CapellaAppEndpoint(CapellaAppService appService, String appServiceId) throws NotFoundException, CapellaAPIError {
+    this.appService = appService;
+    this.rest = CouchbaseCapella.rest;
     appService.getById(appServiceId);
-    endpoint = appService.endpoint + "/" + appServiceId + "/appEndpoints";
+    this.endpoint = appService.getEndpoint() + "/" + appServiceId + "/appEndpoints";
   }
 
   public AppEndpointData create(CreateAppEndpointRequest request) throws CapellaAPIError {
@@ -77,6 +78,9 @@ public class CapellaAppEndpoint {
   }
 
   public AppEndpointData getByName(String appEndpointName) throws NotFoundException, CapellaAPIError {
+    if (appEndpoint != null && appEndpointName.equals(appEndpoint.name())) {
+      return appEndpoint;
+    }
     try {
       JsonNode reply = rest.get(endpoint + "/" + appEndpointName).validate().json();
       appEndpoint = CapellaJson.fromJson(reply, AppEndpointData.class);

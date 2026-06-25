@@ -15,43 +15,40 @@ import java.util.List;
 
 public class CapellaCollection {
   private static final Logger LOGGER = LogManager.getLogger(CapellaCollection.class);
-  private static CapellaCollection instance;
-  private static REST rest;
-  public static String endpoint;
-  public static String scopeName;
-  public static CollectionData collection;
 
-  private CapellaCollection() {}
+  private final CapellaScope scope;
+  private final REST rest;
+  private String endpoint;
+  private String scopeName;
+  private CollectionData collection;
 
   public static CapellaCollection getInstance(CapellaScope scope) {
-    if (instance == null) {
-      instance = new CapellaCollection();
-      instance.attach(scope);
-    }
-    return instance;
+    return new CapellaCollection(scope);
   }
 
   public static CapellaCollection getInstance(CapellaScope scope, String scopeName) {
-    if (instance == null) {
-      instance = new CapellaCollection();
-      instance.attach(scope, scopeName);
-    }
-    return instance;
+    return new CapellaCollection(scope, scopeName);
   }
 
-  public void attach(CapellaScope scope) {
-    CapellaCollection.rest = CouchbaseCapella.rest;
-    if (scope.scope == null) {
+  public CapellaCollection(CapellaScope scope) {
+    this.scope = scope;
+    this.rest = CouchbaseCapella.rest;
+    if (scope.getScopeData() == null) {
       throw new IllegalStateException("Scope must be loaded before attaching collections");
     }
-    CapellaCollection.scopeName = scope.scope.name();
-    endpoint = scope.endpoint + "/" + CapellaCollection.scopeName + "/collections";
+    this.scopeName = scope.getScopeData().name();
+    this.endpoint = scope.getEndpoint() + "/" + scopeName + "/collections";
   }
 
-  public void attach(CapellaScope scope, String scopeName) {
-    CapellaCollection.rest = CouchbaseCapella.rest;
-    CapellaCollection.scopeName = scopeName;
-    endpoint = scope.endpoint + "/" + scopeName + "/collections";
+  public CapellaCollection(CapellaScope scope, String scopeName) {
+    this.scope = scope;
+    this.rest = CouchbaseCapella.rest;
+    this.scopeName = scopeName;
+    this.endpoint = scope.getEndpoint() + "/" + scopeName + "/collections";
+  }
+
+  public CollectionData getCollectionData() {
+    return collection;
   }
 
   public CollectionData createCollection(String collectionName) throws CapellaAPIError {
@@ -87,6 +84,9 @@ public class CapellaCollection {
   }
 
   public CollectionData getCollection(String collectionName) throws NotFoundException, CapellaAPIError {
+    if (collection != null && collectionName.equals(collection.name())) {
+      return collection;
+    }
     try {
       JsonNode reply = rest.get(endpoint + "/" + collectionName).validate().json();
       collection = CapellaJson.fromJson(reply, CollectionData.class);

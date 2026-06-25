@@ -7,5 +7,5 @@ import java.lang.annotation.*;
 public @interface Retryable {
   int maxAttempts() default 3;
   Backoff backoff() default @Backoff();
-  Class<? extends Throwable> retryOn() default Exception.class;
+  Class<? extends Throwable>[] allowableExceptions() default {};
 }

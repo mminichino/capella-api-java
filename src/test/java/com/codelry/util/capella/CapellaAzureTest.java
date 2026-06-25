@@ -2,13 +2,7 @@ package com.codelry.util.capella;
 
 import com.codelry.util.capella.exceptions.CapellaAPIError;
 import com.codelry.util.capella.logic.CloudType;
-import com.couchbase.client.core.deps.io.netty.handler.ssl.util.InsecureTrustManagerFactory;
-import com.couchbase.client.core.env.*;
-import com.couchbase.client.core.error.UnambiguousTimeoutException;
-import com.couchbase.client.java.Bucket;
 import com.couchbase.client.java.Cluster;
-import com.couchbase.client.java.ClusterOptions;
-import com.couchbase.client.java.env.ClusterEnvironment;
 import com.couchbase.client.java.json.JsonObject;
 import com.couchbase.client.java.manager.bucket.BucketSettings;
 import org.apache.logging.log4j.LogManager;
@@ -18,9 +12,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
-import java.time.Duration;
 import java.util.Properties;
-import java.util.function.Consumer;
 
 public class CapellaAzureTest {
   private static final Logger LOGGER = LogManager.getLogger(CapellaAzureTest.class);
@@ -32,6 +24,7 @@ public class CapellaAzureTest {
   public String allowedCIDR = "0.0.0.0/0";
   public String username = "developer";
   public String password = "#C0uchBas3";
+  public static CapellaOrganization organization;
   public static CapellaProject project;
   public static CapellaCluster cluster;
   public static CapellaBucket bucket;
@@ -56,14 +49,14 @@ public class CapellaAzureTest {
   @Test
   public void testCapella1() {
     CouchbaseCapella capella = CouchbaseCapella.getInstance(properties);
-    CapellaOrganization organization = CapellaOrganization.getInstance(capella);
-    project = CapellaProject.getInstance(organization);
+    organization = CapellaOrganization.getInstance(capella);
+    project = organization.getDefaultProject();
     Assertions.assertNotNull(project.getId());
   }
 
   @Test
   public void testCapella2() {
-    cluster = CapellaCluster.getInstance(project, new CapellaCluster
+    cluster = project.createCluster(new CapellaCluster
         .ClusterConfig()
         .cloudType(CloudType.AZURE)
         .singleNode());
@@ -72,21 +65,21 @@ public class CapellaAzureTest {
   @Test
   public void testCapella3() throws CapellaAPIError {
     Assertions.assertNotNull(cluster);
-    cidr = CapellaAllowedCIDR.getInstance(cluster);
+    cidr = cluster.getAllowedCIDR();
     cidr.createAllowedCIDR(allowedCIDR);
   }
 
   @Test
   public void testCapella4() throws CapellaAPIError {
     Assertions.assertNotNull(cluster);
-    user = CapellaCredentials.getInstance(cluster);
+    user = cluster.getCredentials();
     user.createCredential(username, password, null);
   }
 
   @Test
   public void testCapella5() throws CapellaAPIError {
     Assertions.assertNotNull(cluster);
-    bucket = CapellaBucket.getInstance(cluster);
+    bucket = cluster.getBucket();
     BucketSettings bucketSettings = BucketSettings.create(bucketName).ramQuotaMB(128).numReplicas(0);
     bucket.createBucket(bucketSettings);
     scope = CapellaScope.getInstance(bucket);
@@ -98,39 +91,14 @@ public class CapellaAzureTest {
   @Test
   public void testCapella6() {
     Assertions.assertNotNull(cluster);
-    String connectString = cluster.getConnectString();
-    PasswordAuthenticator authenticator = PasswordAuthenticator.create(username, password);
-    Consumer<SecurityConfig.Builder> secConfiguration;
-    secConfiguration = securityConfig -> securityConfig
-        .enableTls(true)
-        .enableHostnameVerification(false)
-        .trustManagerFactory(InsecureTrustManagerFactory.INSTANCE);
-    Consumer<IoConfig.Builder> ioConfiguration = ioConfig -> ioConfig
-        .numKvConnections(4)
-        .networkResolution(NetworkResolution.AUTO)
-        .enableMutationTokens(false);
-    Consumer<TimeoutConfig.Builder> timeOutConfiguration = timeoutConfig -> timeoutConfig
-        .kvTimeout(Duration.ofSeconds(5))
-        .connectTimeout(Duration.ofSeconds(15))
-        .queryTimeout(Duration.ofSeconds(75));
-    ClusterEnvironment environment = ClusterEnvironment
-        .builder()
-        .timeoutConfig(timeOutConfiguration)
-        .ioConfig(ioConfiguration)
-        .securityConfig(secConfiguration)
-        .build();
-    try (Cluster cluster = Cluster.connect(connectString, ClusterOptions.clusterOptions(authenticator).environment(environment))) {
-      Bucket bucket = cluster.bucket(bucketName);
-      for (int i = 0; i < 3; i++) {
-        try {
-          bucket.waitUntilReady(Duration.ofSeconds(5));
-          break;
-        } catch (UnambiguousTimeoutException ignored) {}
-      }
-      bucket.scope(scopeName).collection(collectionName).upsert("test", JsonObject.create().put("id", "test"));
+    Cluster cbCluster = CapellaConnect.connect(cluster);
+    try {
+      CapellaConnect.collection(cbCluster, bucketName, scopeName, collectionName).upsert("test", JsonObject.create().put("id", "test"));
     } catch (Exception e) {
       LOGGER.error("Error connecting to cluster", e);
       Assertions.fail();
+    } finally {
+      CapellaConnect.disconnect(cbCluster);
     }
   }
 

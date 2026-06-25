@@ -23,25 +23,21 @@ import static com.codelry.util.capella.RetryLogic.retryReturn;
 
 public class CapellaUser {
   private static final Logger LOGGER = LogManager.getLogger(CapellaUser.class);
-  private static CapellaUser instance;
-  private static REST rest;
-  public static String email;
-  public static String endpoint;
-  public static UserData user;
 
-  private CapellaUser() {}
+  private final CapellaOrganization organization;
+  private final REST rest;
+  private final String endpoint;
+  private String email;
+  private UserData user;
 
-  public static synchronized CapellaUser getInstance(CapellaOrganization organization) throws UserNotConfiguredException {
-    if (instance == null) {
-      instance = new CapellaUser();
-      instance.attach(organization);
-    }
-    return instance;
+  public static CapellaUser getInstance(CapellaOrganization organization) throws UserNotConfiguredException {
+    return organization.getUser();
   }
 
-  public void attach(CapellaOrganization organization) throws UserNotConfiguredException {
-    CapellaUser.rest = CouchbaseCapella.rest;
-    endpoint = CapellaOrganization.endpoint + "/" + CapellaOrganization.organization.id() + "/users";
+  CapellaUser(CapellaOrganization organization) throws UserNotConfiguredException {
+    this.organization = organization;
+    this.rest = organization.getRest();
+    this.endpoint = organization.getEndpoint() + "/" + organization.getOrganization().id() + "/users";
     try {
       if (CouchbaseCapella.hasAccountEmail()) {
         email = CouchbaseCapella.getAccountEmail();
@@ -60,7 +56,7 @@ public class CapellaUser {
     LOGGER.debug("User ID: {} ({})", user.id(), user.email());
   }
 
-  public static List<UserData> listUsers() throws CapellaAPIError {
+  public List<UserData> listUsers() throws CapellaAPIError {
     List<UserData> result = new ArrayList<>();
     try {
       ArrayNode reply = rest.getPaged(endpoint,
@@ -79,18 +75,21 @@ public class CapellaUser {
     }
   }
 
-  public static List<UserData> getUniqueUsers() throws CapellaAPIError {
+  public List<UserData> getUniqueUsers() throws CapellaAPIError {
     List<UserData> result = listUsers();
     long size = result.size();
     Set<UserData> userSet = new HashSet<>(result);
     while (userSet.size() < size) {
-      List<UserData> update = CapellaUser.listUsers();
+      List<UserData> update = listUsers();
       userSet.addAll(update);
     }
     return new ArrayList<>(userSet);
   }
 
   public UserData getById(String id) throws CapellaAPIError, NotFoundException {
+    if (user != null && user.id().equals(id)) {
+      return user;
+    }
     String userIdEndpoint = endpoint + "/" + id;
     try {
       JsonNode reply = rest.get(userIdEndpoint).validate().json();
@@ -103,21 +102,19 @@ public class CapellaUser {
   }
 
   public UserData getByEmail(String email) throws CapellaAPIError {
-    for (UserData user : listUsers()) {
-      if (user.email().equals(email)) {
-        return user;
+    if (user != null && user.email().equals(email)) {
+      return user;
+    }
+    for (UserData listedUser : listUsers()) {
+      if (listedUser.email().equals(email)) {
+        return listedUser;
       }
     }
     throw new RuntimeException("No user for email: " + email);
   }
 
   public UserData getByEmail() throws CapellaAPIError {
-    for (UserData user : listUsers()) {
-      if (user.email().equals(email)) {
-        return user;
-      }
-    }
-    throw new RuntimeException("No user for email: " + email);
+    return getByEmail(email);
   }
 
   public List<String> getProjects() {

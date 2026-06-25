@@ -15,52 +15,63 @@ import java.util.List;
 
 public class CapellaScope {
   private static final Logger LOGGER = LogManager.getLogger(CapellaScope.class);
-  private static CapellaScope instance;
-  private static REST rest;
-  public static String endpoint;
-  public static ScopeData scope;
 
-  private CapellaScope() {}
+  private final CapellaBucket bucket;
+  private final REST rest;
+  private String endpoint;
+  private ScopeData scope;
 
   public static CapellaScope getInstance(CapellaBucket bucket) {
-    if (instance == null) {
-      instance = new CapellaScope();
-      instance.attach(bucket);
-    }
-    return instance;
+    return new CapellaScope(bucket);
   }
 
   public static CapellaScope getInstance(CapellaBucket bucket, String bucketId) {
-    if (instance == null) {
-      instance = new CapellaScope();
-      instance.attach(bucket, bucketId);
-    }
-    return instance;
+    return new CapellaScope(bucket, bucketId);
   }
 
-  public void attach(CapellaBucket bucket) {
-    CapellaScope.rest = CouchbaseCapella.rest;
-    if (bucket.bucket == null) {
+  public CapellaScope(CapellaBucket bucket) {
+    this.bucket = bucket;
+    this.rest = CouchbaseCapella.rest;
+    if (bucket.getBucketData() == null) {
       throw new IllegalStateException("Bucket must be loaded before attaching scopes");
     }
-    endpoint = bucket.endpoint + "/" + bucket.bucket.id() + "/scopes";
+    this.endpoint = bucket.getEndpoint() + "/" + bucket.getBucketData().id() + "/scopes";
   }
 
-  public void attach(CapellaBucket bucket, String bucketId) {
-    CapellaScope.rest = CouchbaseCapella.rest;
-    endpoint = bucket.endpoint + "/" + bucketId + "/scopes";
+  public CapellaScope(CapellaBucket bucket, String bucketId) {
+    this.bucket = bucket;
+    this.rest = CouchbaseCapella.rest;
+    this.endpoint = bucket.getEndpoint() + "/" + bucketId + "/scopes";
   }
 
-  @Retryable(maxAttempts = 3, backoff = @Backoff(delay = 500, multiplier = 2))
+  public ScopeData getScopeData() {
+    return scope;
+  }
+
+  public String getEndpoint() {
+    return endpoint;
+  }
+
+  @Retryable(backoff = @Backoff(multiplier = 2))
   public ScopeData createScope(String scopeName) throws CapellaAPIError {
+    try {
+      return RetryExecutor.execute(
+          CapellaScope.class.getMethod("createScope", String.class),
+          () -> createScopeOnce(scopeName));
+    } catch (CapellaAPIError e) {
+      throw e;
+    } catch (Exception e) {
+      throw new CapellaAPIError(rest.responseCode, rest.responseBody, "Scope Create Error", e);
+    }
+  }
+
+  private ScopeData createScopeOnce(String scopeName) throws CapellaAPIError {
     CreateScopeRequest request = new CreateScopeRequest(scopeName);
     try {
       rest.post(endpoint, CapellaJson.toJson(request)).validate();
       scope = getScope(scopeName);
       return scope;
-    } catch (NotFoundException e) {
-      throw new CapellaAPIError(rest.responseCode, rest.responseBody, CapellaJson.toJson(request), "Scope Create Error", e);
-    } catch (HttpResponseException e) {
+    } catch (NotFoundException | HttpResponseException e) {
       throw new CapellaAPIError(rest.responseCode, rest.responseBody, CapellaJson.toJson(request), "Scope Create Error", e);
     }
   }
@@ -76,6 +87,9 @@ public class CapellaScope {
   }
 
   public ScopeData getScope(String scopeName) throws NotFoundException, CapellaAPIError {
+    if (scope != null && scopeName.equals(scope.name())) {
+      return scope;
+    }
     try {
       JsonNode reply = rest.get(endpoint + "/" + scopeName).validate().json();
       scope = CapellaJson.fromJson(reply, ScopeData.class);

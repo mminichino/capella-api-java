@@ -17,30 +17,26 @@ import java.util.List;
 
 public class CapellaAllowedCIDR {
   private static final Logger LOGGER = LogManager.getLogger(CapellaAllowedCIDR.class);
-  private static CapellaAllowedCIDR instance;
-  private static REST rest;
-  public static String endpoint;
-  public static AllowedCIDRData cidr;
 
-  private CapellaAllowedCIDR() {}
+  private final CapellaCluster cluster;
+  private final REST rest;
+  private final String endpoint;
+  private AllowedCIDRData cidr;
 
   public static CapellaAllowedCIDR getInstance(CapellaCluster cluster) {
-    if (instance == null) {
-      instance = new CapellaAllowedCIDR();
-    }
-    instance.attach(cluster);
-    return instance;
+    return cluster.getAllowedCIDR();
   }
 
-  public void attach(CapellaCluster cluster) {
-    CapellaAllowedCIDR.rest = CouchbaseCapella.rest;
-    endpoint = CapellaCluster.endpoint + "/" + CapellaCluster.cluster.id() + "/allowedcidrs";
+  CapellaAllowedCIDR(CapellaCluster cluster) {
+    this.cluster = cluster;
+    this.rest = CouchbaseCapella.rest;
+    this.endpoint = cluster.getEndpoint() + "/" + cluster.getClusterData().id() + "/allowedcidrs";
   }
 
   public AllowedCIDRData isCIDR(String network) throws CapellaAPIError {
-    for (AllowedCIDRData cidr : list()) {
-      if (network.equals(cidr.cidr())) {
-        return cidr;
+    for (AllowedCIDRData listedCidr : list()) {
+      if (network.equals(listedCidr.cidr())) {
+        return listedCidr;
       }
     }
     return null;
@@ -100,15 +96,21 @@ public class CapellaAllowedCIDR {
   }
 
   public AllowedCIDRData getByName(String network) throws NotFoundException, CapellaAPIError {
-    for (AllowedCIDRData cidr : list()) {
-      if (network.equals(cidr.cidr())) {
-        return cidr;
+    if (cidr != null && network.equals(cidr.cidr())) {
+      return cidr;
+    }
+    for (AllowedCIDRData listedCidr : list()) {
+      if (network.equals(listedCidr.cidr())) {
+        return listedCidr;
       }
     }
     throw new NotFoundException("Can not find allowed CIDR " + network);
   }
 
   public AllowedCIDRData getById(String id) throws NotFoundException, CapellaAPIError {
+    if (cidr != null && cidr.id().equals(id)) {
+      return cidr;
+    }
     String cidrIdEndpoint = endpoint + "/" + id;
     try {
       JsonNode reply = rest.get(cidrIdEndpoint).validate().json();

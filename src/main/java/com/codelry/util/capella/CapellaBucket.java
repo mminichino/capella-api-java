@@ -7,60 +7,53 @@ import com.codelry.util.capella.logic.CreateBucketRequest;
 import com.codelry.util.rest.REST;
 import com.codelry.util.rest.exceptions.HttpResponseException;
 import com.codelry.util.rest.exceptions.NotFoundError;
-import com.couchbase.client.core.error.UnambiguousTimeoutException;
 import com.couchbase.client.core.manager.bucket.CoreBucketSettings;
-import com.couchbase.client.java.Bucket;
 import com.couchbase.client.java.manager.bucket.BucketSettings;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
 public class CapellaBucket {
   private static final Logger LOGGER = LogManager.getLogger(CapellaBucket.class);
-  private static CapellaBucket instance;
-  private static REST rest;
-  public static String endpoint;
-  public static BucketData bucket;
 
-  private CapellaBucket() {}
+  private final CapellaCluster cluster;
+  private final REST rest;
+  private final String endpoint;
+  private BucketData bucket;
 
   public static CapellaBucket getInstance(CapellaCluster cluster) {
-    if (instance == null) {
-      instance = new CapellaBucket();
-    }
-    instance.attach(cluster);
-    return instance;
+    return cluster.getBucket();
   }
 
   public static CapellaBucket getInstance(CapellaCluster cluster, String bucketName) throws NotFoundException, CapellaAPIError {
-    if (instance == null) {
-      instance = new CapellaBucket();
-    }
-    instance.attach(cluster, bucketName);
-    return instance;
+    CapellaBucket bucketService = cluster.getBucket();
+    bucketService.getBucket(bucketName);
+    return bucketService;
   }
 
-  public void attach(CapellaCluster cluster) {
-    CapellaBucket.rest = CouchbaseCapella.rest;
-    endpoint = CapellaCluster.endpoint + "/" + CapellaCluster.cluster.id() + "/buckets";
+  CapellaBucket(CapellaCluster cluster) {
+    this.cluster = cluster;
+    this.rest = CouchbaseCapella.rest;
+    this.endpoint = cluster.getEndpoint() + "/" + cluster.getClusterData().id() + "/buckets";
   }
 
-  public void attach(CapellaCluster cluster, String bucketName) throws NotFoundException, CapellaAPIError {
-    CapellaBucket.rest = CouchbaseCapella.rest;
-    endpoint = CapellaCluster.endpoint + "/" + CapellaCluster.cluster.id() + "/buckets";
-    getBucket(bucketName);
+  public BucketData getBucketData() {
+    return bucket;
+  }
+
+  public String getEndpoint() {
+    return endpoint;
   }
 
   public BucketData isBucket(String name) throws CapellaAPIError {
-    for (BucketData bucket : list()) {
-      if (name.equals(bucket.name())) {
-        return bucket;
+    for (BucketData listedBucket : list()) {
+      if (name.equals(listedBucket.name())) {
+        return listedBucket;
       }
     }
     return null;
@@ -101,15 +94,6 @@ public class CapellaBucket {
     }
   }
 
-  public void bucketWaitUntilReady(Bucket bucket, int retries) {
-    for (int i = 0; i < retries; i++) {
-      try {
-        bucket.waitUntilReady(Duration.ofSeconds(5));
-        return;
-      } catch (UnambiguousTimeoutException ignored) {}
-    }
-  }
-
   public void delete() throws CapellaAPIError {
     if (bucket != null) {
       try {
@@ -134,15 +118,21 @@ public class CapellaBucket {
   }
 
   public BucketData getByName(String bucketName) throws NotFoundException, CapellaAPIError {
-    for (BucketData bucket : list()) {
-      if (bucketName.equals(bucket.name())) {
-        return bucket;
+    if (bucket != null && bucketName.equals(bucket.name())) {
+      return bucket;
+    }
+    for (BucketData listedBucket : list()) {
+      if (bucketName.equals(listedBucket.name())) {
+        return listedBucket;
       }
     }
     throw new NotFoundException("Can not find bucket " + bucketName);
   }
 
   public BucketData getById(String id) throws NotFoundException, CapellaAPIError {
+    if (bucket != null && bucket.id().equals(id)) {
+      return bucket;
+    }
     String bucketIdEndpoint = endpoint + "/" + id;
     try {
       JsonNode reply = rest.get(bucketIdEndpoint).validate().json();

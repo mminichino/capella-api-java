@@ -16,36 +16,36 @@ import java.util.List;
 
 public class CapellaCredentials {
   private static final Logger LOGGER = LogManager.getLogger(CapellaCredentials.class);
-  private static CapellaCredentials instance;
-  private static REST rest;
-  public static String endpoint;
-  public static CredentialData user;
 
-  private CapellaCredentials() {}
+  private final CapellaCluster cluster;
+  private final REST rest;
+  private final String endpoint;
+  private CredentialData user;
+  private String username;
+  private String password;
 
   public static CapellaCredentials getInstance(CapellaCluster cluster) {
-    if (instance == null) {
-      instance = new CapellaCredentials();
-    }
-    instance.attach(cluster);
-    return instance;
+    return cluster.getCredentials();
   }
 
-  public void attach(CapellaCluster cluster) {
-    CapellaCredentials.rest = CouchbaseCapella.rest;
-    endpoint = CapellaCluster.endpoint + "/" + CapellaCluster.cluster.id() + "/users";
+  CapellaCredentials(CapellaCluster cluster) {
+    this.cluster = cluster;
+    this.rest = CouchbaseCapella.rest;
+    this.endpoint = cluster.getEndpoint() + "/" + cluster.getClusterData().id() + "/users";
   }
 
   public CredentialData isUser(String username) throws CapellaAPIError {
-    for (CredentialData user : list()) {
-      if (username.equals(user.name())) {
-        return user;
+    for (CredentialData listedUser : list()) {
+      if (username.equals(listedUser.name())) {
+        return listedUser;
       }
     }
     return null;
   }
 
   public CreateDatabaseCredentialResponse createCredential(String username, String password, List<DatabaseAccessEntry> access) throws CapellaAPIError {
+    this.username = username;
+    this.password = password;
     CredentialData check = isUser(username);
     if (check != null) {
       LOGGER.debug("User {} already exists", username);
@@ -112,15 +112,21 @@ public class CapellaCredentials {
   }
 
   public CredentialData getByName(String username) throws NotFoundException, CapellaAPIError {
-    for (CredentialData user : list()) {
-      if (username.equals(user.name())) {
-        return user;
+    if (user != null && username.equals(user.name())) {
+      return user;
+    }
+    for (CredentialData listedUser : list()) {
+      if (username.equals(listedUser.name())) {
+        return listedUser;
       }
     }
     throw new NotFoundException("Can not find user " + username);
   }
 
   public CredentialData getById(String id) throws NotFoundException, CapellaAPIError {
+    if (user != null && user.id().equals(id)) {
+      return user;
+    }
     String userIdEndpoint = endpoint + "/" + id;
     try {
       JsonNode reply = rest.get(userIdEndpoint).validate().json();
@@ -134,6 +140,14 @@ public class CapellaCredentials {
 
   public void getCredential(String username) throws NotFoundException, CapellaAPIError {
     user = getByName(username);
+  }
+
+  public String getUsername() {
+    return username;
+  }
+
+  public String getPassword() {
+    return password;
   }
 
   private static List<DatabaseAccessEntry> defaultAccess() {
