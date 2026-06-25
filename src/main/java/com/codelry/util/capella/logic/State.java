@@ -3,7 +3,10 @@ package com.codelry.util.capella.logic;
 public enum State {
   HEALTHY("healthy"),
   DEPLOYING("deploying"),
-  DESTROYING("destroying");
+  DESTROYING("destroying"),
+  DESTROYED("destroyed"),
+  FAILED("deploymentFailed"),
+  UNKNOWN("unknown");
 
   private final String state;
 

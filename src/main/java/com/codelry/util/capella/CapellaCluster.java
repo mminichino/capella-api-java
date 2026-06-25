@@ -188,13 +188,13 @@ public class CapellaCluster {
       if (cloudRegion.isEmpty()) {
         switch (cloudType) {
           case GCP:
-            cloudRegion = "us-central1";
+            cloudRegion = "us-east4";
             break;
           case AZURE:
             cloudRegion = "eastus";
             break;
           default:
-            cloudRegion = "us-east-1";
+            cloudRegion = "us-east-2";
             break;
         }
       }
@@ -213,28 +213,37 @@ public class CapellaCluster {
     }
   }
 
-  public boolean wait(String clusterId, State state, StateWaitOperation operation) throws CapellaAPIError {
+  public State wait(String clusterId, State state, StateWaitOperation operation) throws CapellaAPIError {
     String clusterIdEndpoint = endpoint + "/" + clusterId;
+    boolean waitForDestroyed = operation == StateWaitOperation.NOT_EQUALS && state == State.DESTROYING;
     for (int retry = 0; retry < 600; retry++) {
       try {
         JsonNode reply = rest.get(clusterIdEndpoint).validate().json();
-        boolean check = operation.evaluate(reply.get("currentState").asText().equals(state.toString()));
+        String currentState = reply.get("currentState").asText();
+        if (State.FAILED.toString().equals(currentState)) {
+          return State.FAILED;
+        }
+        if (waitForDestroyed) {
+          Thread.sleep(Duration.ofSeconds(1).toMillis());
+          continue;
+        }
+        boolean check = operation.evaluate(currentState.equals(state.toString()));
         if (!check) {
           Thread.sleep(Duration.ofSeconds(1).toMillis());
           continue;
         }
-        return false;
+        return State.HEALTHY;
       } catch (InterruptedException e) {
         LOGGER.debug(e.getMessage(), e);
-        return true;
+        return State.UNKNOWN;
       } catch (NotFoundError e) {
         LOGGER.debug("Cluster not found");
-        return state != State.DESTROYING;
+        return State.DESTROYED;
       } catch (HttpResponseException e) {
         throw new CapellaAPIError(rest.responseCode, rest.responseBody, "Cluster Wait Error", e);
       }
     }
-    return true;
+    return State.UNKNOWN;
   }
 
   public ClusterData isCluster(String name) throws CapellaAPIError {
@@ -251,9 +260,10 @@ public class CapellaCluster {
     ClusterData check = isCluster(clusterName);
     if (check != null) {
       LOGGER.debug("Cluster {} already exists", clusterName);
-      if (wait(check.id(), State.HEALTHY, StateWaitOperation.EQUALS)) {
-        LOGGER.debug("Cluster {} is not healthy", check.id());
-        throw new RuntimeException("Cluster is not healthy");
+      State waitResult = wait(check.id(), State.HEALTHY, StateWaitOperation.EQUALS);
+      if (waitResult != State.HEALTHY) {
+        LOGGER.debug("Existing Cluster {} reached state {}", check.id(), waitResult);
+        throw new RuntimeException("Cluster is not healthy: " + waitResult);
       }
       try {
         cluster = getById(check.id());
@@ -266,24 +276,52 @@ public class CapellaCluster {
       return;
     }
     CreateClusterRequest parameters = clusterConfig.create(clusterName);
-    try {
-      JsonNode reply = rest.post(endpoint, CapellaJson.toJson(parameters)).validate().json();
-      String clusterId = reply.get("id").asText();
-      LOGGER.debug("Waiting for cluster {} to be healthy", clusterId);
-      if (wait(clusterId, State.HEALTHY, StateWaitOperation.EQUALS)) {
-        LOGGER.debug("Cluster {} is not healthy", clusterId);
-        throw new RuntimeException("Cluster creation failed");
-      }
+    int maxAttempts = 3;
+    for (int attempt = 1; attempt <= maxAttempts; attempt++) {
       try {
-        cluster = getById(clusterId);
-      } catch (NotFoundException e) {
-        throw new RuntimeException("Cluster creation failed");
+        JsonNode reply = rest.post(endpoint, CapellaJson.toJson(parameters)).validate().json();
+        String clusterId = reply.get("id").asText();
+        LOGGER.debug("Waiting for cluster {} to be healthy (attempt {})", clusterId, attempt);
+        State waitResult = wait(clusterId, State.HEALTHY, StateWaitOperation.EQUALS);
+        if (waitResult == State.HEALTHY) {
+          try {
+            cluster = getById(clusterId);
+          } catch (NotFoundException e) {
+            throw new RuntimeException("Cluster creation failed", e);
+          }
+          attachClusterServices();
+          populateCertificate();
+          project.registerCluster(this);
+          return;
+        }
+        if (waitResult == State.FAILED) {
+          LOGGER.debug("Cluster {} deployment failed (attempt {})", clusterId, attempt);
+          deleteClusterById(clusterId);
+          if (attempt < maxAttempts) {
+            continue;
+          }
+          throw new RuntimeException("Cluster creation failed after " + maxAttempts + " attempts");
+        }
+        LOGGER.debug("Cluster {} reached state {} (attempt {})", clusterId, waitResult, attempt);
+        throw new RuntimeException("Cluster creation failed: " + waitResult);
+      } catch (HttpResponseException e) {
+        throw new CapellaAPIError(rest.responseCode, rest.responseBody, CapellaJson.toJson(parameters), "Cluster Create Error", e);
       }
-      attachClusterServices();
-      populateCertificate();
-      project.registerCluster(this);
+    }
+  }
+
+  private void deleteClusterById(String clusterId) throws CapellaAPIError {
+    try {
+      rest.delete(endpoint + "/" + clusterId).validate();
+      LOGGER.debug("Waiting for cluster {} to be deleted", clusterId);
+      State waitResult = wait(clusterId, State.DESTROYING, StateWaitOperation.NOT_EQUALS);
+      if (waitResult != State.DESTROYED) {
+        LOGGER.debug("Cluster {} deletion reached state {}", clusterId, waitResult);
+      }
+    } catch (NotFoundError e) {
+      LOGGER.debug("Cluster {} already deleted", clusterId);
     } catch (HttpResponseException e) {
-      throw new CapellaAPIError(rest.responseCode, rest.responseBody, CapellaJson.toJson(parameters), "Cluster Create Error", e);
+      LOGGER.debug("Failed to delete cluster {}: {}", clusterId, e.getMessage());
     }
   }
 
@@ -326,12 +364,14 @@ public class CapellaCluster {
   public void delete() throws CapellaAPIError {
     if (cluster != null) {
       try {
-        String clusterIdEndpoint = endpoint + "/" + cluster.id();
-        rest.delete(clusterIdEndpoint).validate();
-        LOGGER.debug("Waiting for cluster {} to be deleted", cluster.name());
-        if (wait(cluster.id(), State.DESTROYING, StateWaitOperation.NOT_EQUALS)) {
-          LOGGER.debug("Cluster {} is not deleted", cluster.name());
-          throw new RuntimeException("Cluster deletion failed");
+        String clusterId = cluster.id();
+        String clusterName = cluster.name();
+        rest.delete(endpoint + "/" + clusterId).validate();
+        LOGGER.debug("Waiting for cluster {} to be deleted", clusterName);
+        State waitResult = wait(clusterId, State.DESTROYING, StateWaitOperation.NOT_EQUALS);
+        if (waitResult != State.DESTROYED) {
+          LOGGER.debug("Cluster {} deletion reached state {}", clusterName, waitResult);
+          throw new RuntimeException("Cluster deletion failed: " + waitResult);
         }
         cluster = null;
       } catch (HttpResponseException e) {

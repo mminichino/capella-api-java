@@ -12,6 +12,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
+import java.time.Duration;
 import java.util.Properties;
 
 public class CapellaGCPTest {
@@ -56,10 +57,7 @@ public class CapellaGCPTest {
 
   @Test
   public void testCapella2() {
-    cluster = project.createCluster(new CapellaCluster
-        .ClusterConfig()
-        .cloudType(CloudType.GCP)
-        .singleNode());
+    cluster = project.createCluster(new CapellaCluster.ClusterConfig().cloudType(CloudType.GCP));
   }
 
   @Test
@@ -67,6 +65,7 @@ public class CapellaGCPTest {
     Assertions.assertNotNull(cluster);
     cidr = cluster.getAllowedCIDR();
     cidr.createAllowedCIDR(allowedCIDR);
+    Assertions.assertTrue(new CapellaConnectivity().checkConnectivity(cluster.getConnectString(), Duration.ofMinutes(2)));
   }
 
   @Test
@@ -80,7 +79,7 @@ public class CapellaGCPTest {
   public void testCapella5() throws CapellaAPIError {
     Assertions.assertNotNull(cluster);
     bucket = cluster.getBucket();
-    BucketSettings bucketSettings = BucketSettings.create(bucketName).ramQuotaMB(128).numReplicas(0);
+    BucketSettings bucketSettings = BucketSettings.create(bucketName).ramQuotaMB(128).numReplicas(1);
     bucket.createBucket(bucketSettings);
     scope = CapellaScope.getInstance(bucket);
     scope.createScope(scopeName);

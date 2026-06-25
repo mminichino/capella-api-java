@@ -1,6 +1,7 @@
 package com.codelry.util.capella;
 
 import com.codelry.util.capella.exceptions.CapellaAPIError;
+import com.codelry.util.capella.logic.CloudType;
 import com.couchbase.client.java.Cluster;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -9,6 +10,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
+import java.time.Duration;
 import java.util.Properties;
 
 public class CapellaProperty3Test {
@@ -47,7 +49,7 @@ public class CapellaProperty3Test {
 
   @Test
   public void testCapella2() {
-    cluster = project.createCluster(new CapellaCluster.ClusterConfig().singleNode());
+    cluster = project.createCluster(new CapellaCluster.ClusterConfig().cloudType(CloudType.GCP));
   }
 
   @Test
@@ -55,6 +57,7 @@ public class CapellaProperty3Test {
     Assertions.assertNotNull(cluster);
     cidr = cluster.getAllowedCIDR();
     cidr.createAllowedCIDR(allowedCIDR);
+    Assertions.assertTrue(new CapellaConnectivity().checkConnectivity(cluster.getConnectString(), Duration.ofMinutes(2)));
   }
 
   @Test
