@@ -1,23 +1,25 @@
 package com.codelry.util.capella;
 
 import com.codelry.util.capella.exceptions.CapellaAPIError;
+import com.codelry.util.capella.exceptions.NotFoundException;
 import com.codelry.util.capella.logic.CloudType;
 import com.couchbase.client.java.Cluster;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.junit.jupiter.api.Assertions;
-import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.MethodOrderer.OrderAnnotation;
 
 import java.io.IOException;
 import java.time.Duration;
 import java.util.Properties;
 
+@TestMethodOrder(OrderAnnotation.class)
 public class CapellaProperty3Test {
   private static final Logger LOGGER = LogManager.getLogger(CapellaProperty3Test.class);
   private static final String propertyFile = "test.3.properties";
   public static Properties properties;
   public String allowedCIDR = "0.0.0.0/0";
+  public String database = "testdb";
   public String username = "developer";
   public String password = "#C0uchBas3";
   public static CapellaOrganization organization;
@@ -40,7 +42,8 @@ public class CapellaProperty3Test {
   }
 
   @Test
-  public void testCapella1() {
+  @Order(1)
+  public void setProject() {
     CouchbaseCapella capella = CouchbaseCapella.getInstance(properties);
     organization = CapellaOrganization.getInstance(capella);
     project = organization.getDefaultProject();
@@ -48,12 +51,14 @@ public class CapellaProperty3Test {
   }
 
   @Test
-  public void testCapella2() {
+  @Order(2)
+  public void createCluster() {
     cluster = project.createCluster(new CapellaCluster.ClusterConfig().cloudType(CloudType.GCP));
   }
 
   @Test
-  public void testCapella3() throws CapellaAPIError {
+  @Order(3)
+  public void allowCIDR() throws CapellaAPIError {
     Assertions.assertNotNull(cluster);
     cidr = cluster.getAllowedCIDR();
     cidr.createAllowedCIDR(allowedCIDR);
@@ -61,15 +66,22 @@ public class CapellaProperty3Test {
   }
 
   @Test
-  public void testCapella4() throws CapellaAPIError {
+  @Order(4)
+  public void addUser() throws CapellaAPIError {
     Assertions.assertNotNull(cluster);
     user = cluster.getCredentials();
     user.createCredential(username, password, null);
   }
 
   @Test
-  public void testCapella5() {
-    Assertions.assertNotNull(cluster);
+  @Order(5)
+  public void runTest() throws CapellaAPIError, NotFoundException {
+    CouchbaseCapella capella = CouchbaseCapella.getInstance(properties);
+    CapellaOrganization organization = CapellaOrganization.getInstance(capella);
+    CapellaProject project = organization.getDefaultProject();
+    CapellaCluster cluster = CapellaCluster.getInstance(project, database);
+    cluster.getCredentials().addCredentials(username, password);
+
     Cluster cbCluster = CapellaConnect.connect(cluster);
     try {
       CapellaConnect.clusterWait(cbCluster);
@@ -82,7 +94,8 @@ public class CapellaProperty3Test {
   }
 
   @Test
-  public void testCapella6() throws CapellaAPIError {
+  @Order(6)
+  public void cleanup() throws CapellaAPIError {
     Assertions.assertNotNull(cluster);
     cluster.delete();
   }
