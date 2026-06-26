@@ -37,6 +37,10 @@ public class CapellaCluster {
     return project.createCluster(clusterConfig);
   }
 
+  public static CapellaCluster getInstance(CapellaProject project, String clusterName) {
+    return project.addCluster(clusterName);
+  }
+
   public static CapellaCluster getInstance(CapellaProject project, String clusterName, ClusterConfig clusterConfig) {
     return project.createCluster(clusterName, clusterConfig);
   }
@@ -66,6 +70,13 @@ public class CapellaCluster {
       cluster = getByName(CouchbaseCapella.getDatabaseName());
     }
     attachClusterServices();
+  }
+
+  void addCluster(String clusterName) throws NotFoundException, CapellaAPIError {
+    cluster = getByName(clusterName);
+    attachClusterServices();
+    populateCertificate();
+    project.registerCluster(this);
   }
 
   public static class ServiceGroupConfig {

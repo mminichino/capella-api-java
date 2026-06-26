@@ -121,6 +121,20 @@ public class CapellaProject {
     return cluster;
   }
 
+  public CapellaCluster addCluster(String clusterName) {
+    CapellaCluster cached = findClusterByName(clusterName);
+    if (cached != null) {
+      return cached;
+    }
+    CapellaCluster cluster = new CapellaCluster(this);
+    try {
+      cluster.addCluster(clusterName);
+    } catch (CapellaAPIError | NotFoundException e) {
+      throw new RuntimeException("Can not add cluster " + clusterName, e);
+    }
+    return cluster;
+  }
+
   void registerCluster(CapellaCluster cluster) {
     if (cluster.getClusterData() != null) {
       clustersById.put(cluster.getClusterData().id(), cluster);

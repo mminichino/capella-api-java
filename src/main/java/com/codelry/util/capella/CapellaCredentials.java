@@ -28,6 +28,16 @@ public class CapellaCredentials {
     return cluster.getCredentials();
   }
 
+  public static CapellaCredentials getInstance(CapellaCluster cluster, String username, String password) {
+    CapellaCredentials credentials = cluster.getCredentials();
+    try {
+      credentials.addCredentials(username, password);
+    } catch (CapellaAPIError | NotFoundException e) {
+      throw new RuntimeException("Can not add credentials " + username, e);
+    }
+    return credentials;
+  }
+
   CapellaCredentials(CapellaCluster cluster) {
     this.cluster = cluster;
     this.rest = CouchbaseCapella.rest;
@@ -67,6 +77,14 @@ public class CapellaCredentials {
     } catch (HttpResponseException e) {
       throw new CapellaAPIError(rest.responseCode, rest.responseBody, CapellaJson.toJson(parameters), "Credentials Create Error", e);
     }
+  }
+
+  public CredentialData addCredentials(String username, String password) throws NotFoundException, CapellaAPIError {
+    this.username = username;
+    this.password = password;
+    user = getByName(username);
+    LOGGER.debug("Added existing database credential {}", username);
+    return user;
   }
 
   public void updateCredential(String userId, UpdateDatabaseCredentialRequest request) throws CapellaAPIError {
