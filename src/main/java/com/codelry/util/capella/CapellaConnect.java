@@ -5,19 +5,16 @@ import com.couchbase.client.core.diagnostics.DiagnosticsResult;
 import com.couchbase.client.core.env.*;
 import com.couchbase.client.core.error.AmbiguousTimeoutException;
 import com.couchbase.client.core.error.UnambiguousTimeoutException;
-import com.couchbase.client.core.service.ServiceType;
 import com.couchbase.client.java.Bucket;
 import com.couchbase.client.java.Cluster;
 import com.couchbase.client.java.ClusterOptions;
 import com.couchbase.client.java.Collection;
-import com.couchbase.client.java.diagnostics.PingOptions;
 import com.couchbase.client.java.env.ClusterEnvironment;
 
 import java.lang.reflect.Method;
 import java.security.KeyStore;
 import java.security.cert.X509Certificate;
 import java.time.Duration;
-import java.util.Set;
 import java.util.function.Consumer;
 import javax.net.ssl.TrustManagerFactory;
 
@@ -51,6 +48,10 @@ public class CapellaConnect {
   }
 
   public static Cluster connect(CapellaCluster cluster) {
+    return connect(cluster, new CapellaClusterConfig().build());
+  }
+
+  public static Cluster connect(CapellaCluster cluster, CapellaClusterConfig config) {
     String connectString = cluster.getConnectString();
     String username = cluster.getCredentials().getUsername();
     String password = cluster.getCredentials().getPassword();
@@ -80,13 +81,13 @@ public class CapellaConnect {
       }
     };
     Consumer<IoConfig.Builder> ioConfiguration = ioConfig -> ioConfig
-        .numKvConnections(4)
+        .numKvConnections(config.getKvEndpoints())
         .networkResolution(NetworkResolution.AUTO)
         .enableMutationTokens(false);
     Consumer<TimeoutConfig.Builder> timeOutConfiguration = timeoutConfig -> timeoutConfig
-        .kvTimeout(Duration.ofSeconds(5))
-        .connectTimeout(Duration.ofSeconds(15))
-        .queryTimeout(Duration.ofSeconds(75));
+        .kvTimeout(Duration.ofSeconds(config.getKvTimeout()))
+        .connectTimeout(Duration.ofSeconds(config.getConnectTimeout()))
+        .queryTimeout(Duration.ofSeconds(config.getQueryTimeout()));
     ClusterEnvironment environment = ClusterEnvironment
         .builder()
         .timeoutConfig(timeOutConfiguration)
