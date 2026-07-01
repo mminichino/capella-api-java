@@ -90,7 +90,7 @@ public class CapellaProperty1Test {
   @Test
   public void testCapella6() {
     Assertions.assertNotNull(cluster);
-    Cluster cbCluster = CapellaConnect.connect(cluster);
+    Cluster cbCluster = CapellaConnect.connect(cluster, new CapellaClusterConfig().kvEndpoints(8).build());
     try {
       CapellaConnect.collection(cbCluster, bucketName, scopeName, collectionName).upsert("test", JsonObject.create().put("id", "test"));
     } catch (Exception e) {
