@@ -5,6 +5,8 @@ public class CapellaClusterConfig {
   private int kvTimeout = 5;
   private int connectTimeout = 15;
   private int queryTimeout = 75;
+  private int maxHttpConnections = 64;
+  private boolean enableMutationTokens = false;
 
   public CapellaClusterConfig kvEndpoints(int kvEndpoints) {
     this.kvEndpoints = kvEndpoints;
@@ -26,6 +28,16 @@ public class CapellaClusterConfig {
     return this;
   }
 
+  public CapellaClusterConfig maxHttpConnections(int maxHttpConnections) {
+    this.maxHttpConnections = maxHttpConnections;
+    return this;
+  }
+
+  public CapellaClusterConfig enableMutationTokens(boolean enableMutationTokens) {
+    this.enableMutationTokens = enableMutationTokens;
+    return this;
+  }
+
   public CapellaClusterConfig build() {
     return this;
   }
@@ -44,5 +56,13 @@ public class CapellaClusterConfig {
 
   public int getQueryTimeout() {
     return queryTimeout;
+  }
+
+  public int getMaxHttpConnections() {
+    return maxHttpConnections;
+  }
+
+  public boolean getEnableMutationTokens() {
+    return enableMutationTokens;
   }
 }
