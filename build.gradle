@@ -123,6 +123,9 @@ jreleaser {
         artifact {
             path = "build/libs/${rootProject.name}-${rootProject.version}.jar"
         }
+        artifact {
+            path = "build/distributions/${rootProject.name}-${rootProject.version}.zip"
+        }
     }
     signing {
         pgp {
