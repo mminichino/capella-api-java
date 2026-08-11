@@ -83,7 +83,8 @@ public class CapellaConnect {
     Consumer<IoConfig.Builder> ioConfiguration = ioConfig -> ioConfig
         .numKvConnections(config.getKvEndpoints())
         .networkResolution(NetworkResolution.AUTO)
-        .enableMutationTokens(false);
+        .maxHttpConnections(config.getMaxHttpConnections())
+        .enableMutationTokens(config.getEnableMutationTokens());
     Consumer<TimeoutConfig.Builder> timeOutConfiguration = timeoutConfig -> timeoutConfig
         .kvTimeout(Duration.ofSeconds(config.getKvTimeout()))
         .connectTimeout(Duration.ofSeconds(config.getConnectTimeout()))
